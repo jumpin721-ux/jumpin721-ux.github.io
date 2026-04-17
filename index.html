@@ -731,7 +731,6 @@ const LAYER_CONFIG = [
       {
         id: 'hotels', type: 'places', label: 'Hotels', color: '#e05252',
         searchType: 'lodging',
-        keywords: ['hotel'],
         hover: ['name','rating','userRatingCount','starRating'],
         click: ['photo','name','rating','userRatingCount','starRating','formattedAddress','websiteUri','nationalPhoneNumber']
       },
@@ -780,16 +779,13 @@ const LAYER_CONFIG = [
   }
 ];
 
-// Fields that require Places Details API call (not returned in Nearby Search)
-const DETAIL_FIELDS = ['websiteUri','nationalPhoneNumber','regularOpeningHours','editorialSummary','photos'];
-
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
 let map = null;
 let apiKey = '';
-let layerMarkers = {};     // layerId -> array of {marker, place}
-let layerEnabled = {};     // layerId -> bool
+let layerMarkers = {};
+let layerEnabled = {};
 let seenPlaceIds = new Set();
 let routeRenderer = null;
 let gpxPolyline = null;
@@ -799,7 +795,6 @@ let routePanelOpen = false;
 // INIT MAP
 // ═══════════════════════════════════════════════════════════
 
-// Called by Google Maps script once loaded
 function initMap() {
   document.getElementById('no-map-msg').style.display = 'none';
 
@@ -833,7 +828,6 @@ function initMap() {
   setStatus('Map loaded. Click "Search This Area" to find places.');
 }
 
-// Called when user clicks Load Map button
 function loadMapWithKey() {
   apiKey = document.getElementById('api-key-input').value.trim();
   if (!apiKey) {
@@ -841,12 +835,12 @@ function loadMapWithKey() {
     return;
   }
   if (window.google) {
-    initMap(); // already loaded
+    initMap();
     return;
   }
   setStatus('Loading Google Maps…');
   const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initMap`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&loading=async`;
   script.async = true;
   script.onerror = () => {
     setStatus('Failed to load Google Maps. Check your API key and try again.');
@@ -855,9 +849,6 @@ function loadMapWithKey() {
   document.head.appendChild(script);
 }
 
-// ═══════════════════════════════════════════════════════════
-// SAVED POSITION
-// ═══════════════════════════════════════════════════════════
 function savePosition() {
   if (!map) return;
   const c = map.getCenter();
@@ -870,13 +861,9 @@ function getSavedPosition() {
     const p = JSON.parse(localStorage.getItem('tripplanner_pos'));
     if (p && p.lat) return { center: { lat: p.lat, lng: p.lng }, zoom: p.zoom || 10 };
   } catch(e) {}
-  // Default: Dayton, OH
   return { center: { lat: 39.7589, lng: -84.1916 }, zoom: 10 };
 }
 
-// ═══════════════════════════════════════════════════════════
-// LAYER PANEL
-// ═══════════════════════════════════════════════════════════
 function buildLayerPanel() {
   const list = document.getElementById('layers-list');
   list.innerHTML = '';
@@ -913,15 +900,13 @@ function buildLayerPanel() {
 
   LAYER_CONFIG.forEach(item => {
     if (item.type === 'group') {
-      // Group header
       const groupDiv = document.createElement('div');
-
       const header = document.createElement('div');
       header.className = 'group-header';
 
       const chevron = document.createElement('span');
       chevron.className = 'group-chevron';
-      chevron.textContent = '▾';
+      chevron.textContent = '❾';
 
       const gcb = document.createElement('input');
       gcb.type = 'checkbox'; gcb.className = 'group-checkbox'; gcb.checked = true;
@@ -950,7 +935,6 @@ function buildLayerPanel() {
       });
 
       item.children.forEach(child => children.appendChild(renderLayer(child, true)));
-
       groupDiv.appendChild(header); groupDiv.appendChild(children);
       list.appendChild(groupDiv);
     } else {
@@ -989,14 +973,10 @@ function getAllLeafLayers() {
   return result;
 }
 
-// ═══════════════════════════════════════════════════════════
-// SEARCH THIS AREA
-// ═══════════════════════════════════════════════════════════
 async function searchThisArea() {
   if (!map) return;
   setStatus('<span class="spinner"></span> Searching…');
 
-  // Clear existing markers
   getAllLeafLayers().forEach(layer => {
     (layerMarkers[layer.id] || []).forEach(({ marker }) => marker.setMap(null));
     layerMarkers[layer.id] = [];
@@ -1007,18 +987,17 @@ async function searchThisArea() {
 
   const bounds = map.getBounds();
   const center = map.getCenter();
-  const radius = Math.min(computeRadius(bounds), 50000); // max 50km
+  const radius = Math.min(computeRadius(bounds), 50000);
 
   const activeLayers = getAllLeafLayers().filter(l => layerEnabled[l.id]);
   if (activeLayers.length === 0) { setStatus('No layers enabled.'); return; }
 
-  // Fire all layer searches in parallel
   const results = await Promise.allSettled(
     activeLayers.map(layer => searchLayer(layer, center, radius))
   );
 
   let total = 0;
-  results.forEach((result, i) => {
+  results.forEach((result) => {
     if (result.status === 'fulfilled') total += result.value;
   });
 
@@ -1112,9 +1091,6 @@ function buildFieldMask(layer) {
   return [...new Set([...base, ...extras])].map(f => `places.${f}`).join(',');
 }
 
-// ═══════════════════════════════════════════════════════════
-// MARKERS
-// ═══════════════════════════════════════════════════════════
 function createMarker(place, layer, lat, lng) {
   const marker = new google.maps.Marker({
     position: { lat, lng },
@@ -1130,19 +1106,13 @@ function createMarker(place, layer, lat, lng) {
     }
   });
 
-  // Hover
   marker.addListener('mouseover', (e) => showHoverTooltip(place, layer, e));
   marker.addListener('mouseout', hideHoverTooltip);
-
-  // Click
   marker.addListener('click', () => showClickPopup(place, layer));
 
   return marker;
 }
 
-// ═══════════════════════════════════════════════════════════
-// HOVER TOOLTIP
-// ═══════════════════════════════════════════════════════════
 function showHoverTooltip(place, layer, event) {
   const tt = document.getElementById('hover-tooltip');
   const name = place.displayName?.text || 'Unknown';
@@ -1164,13 +1134,11 @@ function showHoverTooltip(place, layer, event) {
   const gmapsUrl = getGMapsUrl(place);
   document.getElementById('tt-gmaps').href = gmapsUrl;
 
-  // Position near cursor
   positionTooltip(tt, event);
   tt.style.display = 'block';
 }
 
 function positionTooltip(tt, event) {
-  // Use pixel position from map overlay
   const mapDiv = document.getElementById('map');
   const rect = mapDiv.getBoundingClientRect();
   const x = event.domEvent?.clientX - rect.left || 100;
@@ -1183,23 +1151,17 @@ function hideHoverTooltip() {
   document.getElementById('hover-tooltip').style.display = 'none';
 }
 
-// ═══════════════════════════════════════════════════════════
-// CLICK POPUP
-// ═══════════════════════════════════════════════════════════
 function showClickPopup(place, layer) {
   const popup = document.getElementById('click-popup');
   popup.classList.add('visible');
   hideHoverTooltip();
 
-  // Tag
   const tag = document.getElementById('popup-tag');
   tag.textContent = layer.label;
   tag.style.background = layer.color;
 
-  // Name
   document.getElementById('popup-name').textContent = place.displayName?.text || 'Unknown';
 
-  // Rating row
   const ratingRow = document.getElementById('popup-rating-row');
   if (place.rating) {
     ratingRow.style.display = 'flex';
@@ -1210,7 +1172,6 @@ function showClickPopup(place, layer) {
     ratingRow.style.display = 'none';
   }
 
-  // Star rating (hotels)
   const starRatingEl = document.getElementById('popup-star-rating');
   if (place.starRating) {
     starRatingEl.style.display = 'block';
@@ -1219,7 +1180,6 @@ function showClickPopup(place, layer) {
     starRatingEl.style.display = 'none';
   }
 
-  // Photo
   const photo = document.getElementById('popup-photo');
   const placeholder = document.getElementById('popup-photo-placeholder');
   if (place.photos && place.photos.length > 0) {
@@ -1233,7 +1193,6 @@ function showClickPopup(place, layer) {
     placeholder.style.display = 'flex';
   }
 
-  // Fields
   const fieldsDiv = document.getElementById('popup-fields');
   fieldsDiv.innerHTML = '';
 
@@ -1269,9 +1228,8 @@ function showClickPopup(place, layer) {
     if (todayHours) addField('🕐', todayHours);
   }
   if (place.websiteUri) addField('🌐', place.websiteUri, true);
-  if (place.nationalPhoneNumber) addField('📞', place.nationalPhoneNumber);
+  if (place.nationalPhoneNumber) addField('�', place.nationalPhoneNumber);
 
-  // Google Maps link
   const gmapsLink = document.getElementById('popup-gmaps-link');
   gmapsLink.href = getGMapsUrl(place);
 }
@@ -1280,9 +1238,6 @@ function closePopup() {
   document.getElementById('click-popup').classList.remove('visible');
 }
 
-// ═══════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════
 function getGMapsUrl(place) {
   if (place.id) return `https://www.google.com/maps/place/?q=place_id:${place.id}`;
   const loc = place.location;
@@ -1296,7 +1251,7 @@ function priceLevelStr(level) {
     'PRICE_LEVEL_INEXPENSIVE': '$',
     'PRICE_LEVEL_MODERATE': '$$',
     'PRICE_LEVEL_EXPENSIVE': '$$$',
-    'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$'
+    'PRICE_LEVEL_VERY_EXPEYSITE: '$$$$'
   };
   return map[level] || '';
 }
@@ -1305,9 +1260,6 @@ function setStatus(html) {
   document.getElementById('status-bar').innerHTML = html;
 }
 
-// ═══════════════════════════════════════════════════════════
-// ROUTE PLANNER
-// ═══════════════════════════════════════════════════════════
 function toggleRoutePanel() {
   routePanelOpen = !routePanelOpen;
   document.getElementById('route-panel').style.display = routePanelOpen ? 'block' : 'none';
@@ -1364,7 +1316,6 @@ function loadGPX(event) {
       map
     });
 
-    // Fit map to route
     const bounds = new google.maps.LatLngBounds();
     pts.forEach(p => bounds.extend(p));
     map.fitBounds(bounds);
@@ -1373,9 +1324,6 @@ function loadGPX(event) {
   reader.readAsText(file);
 }
 
-// ═══════════════════════════════════════════════════════════
-// MAP STYLES (dark terrain feel)
-// ═══════════════════════════════════════════════════════════
 function mapStyles() {
   return [
     { elementType: 'geometry', stylers: [{ color: '#1a2035' }] },
