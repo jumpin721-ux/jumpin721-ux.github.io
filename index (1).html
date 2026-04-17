@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Jim's Trip Planner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --panel-bg: #1a1f2e;
+      --panel-border: #2d3548;
+      --panel-header: #0f1420;
+      --accent: #e8a020;
+      --accent2: #3d9be9;
+      --text: #e2e8f0;
+      --text-dim: #8896aa;
+      --group-bg: #232940;
+      --layer-bg: #1e2435;
+      --layer-hover: #252c3f;
+      --shadow: 0 4px 24px rgba(0,0,0,0.5);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Barlow', sans-serif;
+      background: #0f1420;
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      background: var(--panel-header);
+      border-bottom: 2px solid var(--accent);
+      padding: 0 16px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    #header h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    #header .subtitle {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .header-spacer { flex: 1; }
+
+    #api-key-input {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 280px;
+      font-family: monospace;
+    }
+
+    #api-key-input::placeholder { color: var(--text-dim); }
+
+    #load-btn {
+      background: var(--accent);
+      color: #0f1420;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+    #load-btn:hover { opacity: 0.85; }
+
+    /* ── MAIN LAYOUT ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── LAYER PANEL ── */
+    #layer-panel {
+      width: 260px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #panel-header {
+      background: var(--panel-header);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #panel-header span {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    #toggle-all-btn {
+      font-size: 10px;
+      background: none;
+      border: 1px solid var(--panel-border);
+      color: var(--text-dim);
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    #toggle-all-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    #layers-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    #layers-list::-webkit-scrollbar { width: 4px; }
+    #layers-list::-webkit-scrollbar-track { background: transparent; }
+    #layers-list::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .group-header:hover { background: var(--group-bg); }
+
+    .group-chevron {
+      font-size: 10px;
+      color: var(--text-dim);
+      transition: transform 0.2s;
+      width: 12px;
+    }
+    .group-chevron.collapsed { transform: rotate(-90deg); }
+
+    .group-checkbox {
+      width: 14px; height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .group-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      flex: 1;
+    }
+
+    .group-count {
+      font-size: 10px;
+      color: var(--text-dim);
+      background: var(--panel-border);
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .group-children { }
+    .group-children.collapsed { display: none; }
+
+    .layer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px 5px 28px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-left: 2px solid transparent;
+    }
+
+    .layer-row:hover { background: var(--layer-hover); }
+    .layer-row.active { border-left-color: var(--accent); }
+
+    .layer-checkbox {
+      width: 14px; height: 14px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .layer-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+    }
+
+    .layer-name {
+      font-size: 13px;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .layer-count {
+      font-size: 10px;
+      color: var(--text-dim);
+      min-width: 20px;
+      text-align: right;
+    }
+
+    /* Ungrouped layers */
+    .ungrouped-layer {
+      padding-left: 14px;
+    }
+
+    /* ── SEARCH THIS AREA BUTTON ── */
+    #search-area-btn {
+      margin: 10px 14px;
+      background: var(--accent2);
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: var(--radius);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      width: calc(100% - 28px);
+      transition: opacity 0.2s;
+      flex-shrink: 0;
+    }
+    #search-area-btn:hover { opacity: 0.85; }
+    #search-area-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #status-bar {
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--panel-border);
+      min-height: 28px;
+      flex-shrink: 0;
+    }
+
+    /* ── MAP AREA ── */
+    #map-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── HOVER TOOLTIP ── */
+    #hover-tooltip {
+      position: absolute;
+      background: var(--panel-header);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      pointer-events: none;
+      z-index: 500;
+      max-width: 220px;
+      box-shadow: var(--shadow);
+      display: none;
+      animation: fadeIn 0.15s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .tooltip-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .tooltip-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .tooltip-gmaps {
+      font-size: 11px;
+      color: var(--accent2);
+      text-decoration: none;
+      display: block;
+      margin-top: 4px;
+      pointer-events: all;
+    }
+    .tooltip-gmaps:hover { text-decoration: underline; }
+
+    /* ── CLICK POPUP ── */
+    #click-popup {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 300px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      animation: slideIn 0.2s ease;
+      max-height: calc(100vh - 80px);
+    }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+
+    #click-popup.visible { display: flex; }
+
+    #popup-close {
+      position: absolute;
+      top: 8px; right: 8px;
+      background: rgba(0,0,0,0.4);
+      border: none;
+      color: var(--text);
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: background 0.2s;
+    }
+    #popup-close:hover { background: rgba(255,255,255,0.15); }
+
+    #popup-photo {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      display: none;
+      background: var(--panel-border);
+    }
+
+    #popup-photo-placeholder {
+      width: 100%;
+      height: 80px;
+      background: var(--group-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: 28px;
+    }
+
+    #popup-body {
+      padding: 14px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    #popup-body::-webkit-scrollbar { width: 4px; }
+    #popup-body::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+    .popup-layer-tag {
+      display: inline-block;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 3px;
+      margin-bottom: 6px;
+      color: white;
+    }
+
+    #popup-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      line-height: 1.2;
+    }
+
+    .popup-rating {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .popup-stars {
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    .popup-rating-num {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .popup-rating-count {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .popup-divider {
+      border: none;
+      border-top: 1px solid var(--panel-border);
+      margin: 10px 0;
+    }
+
+    .popup-field {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+      align-items: flex-start;
+    }
+
+    .popup-field-icon {
+      width: 16px;
+      text-align: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: var(--text-dim);
+    }
+
+    .popup-field-text {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .popup-field-text a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+    .popup-field-text a:hover { text-decoration: underline; }
+
+    #popup-gmaps-link {
+      display: block;
+      text-align: center;
+      background: var(--accent2);
+      color: white;
+      text-decoration: none;
+      padding: 8px;
+      border-radius: 4px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 10px;
+      transition: opacity 0.2s;
+    }
+    #popup-gmaps-link:hover { opacity: 0.85; }
+
+    /* Loading spinner */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--panel-border);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Route panel */
+    #route-panel {
+      position: absolute;
+      bottom: 24px;
+      left: 16px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      z-index: 400;
+      width: 240px;
+      box-shadow: var(--shadow);
+    }
+
+    #route-panel h3 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .route-input {
+      width: 100%;
+      background: var(--panel-header);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 6px;
+      font-family: 'Barlow', sans-serif;
+    }
+    .route-input::placeholder { color: var(--text-dim); }
+    .route-input:focus { outline: none; border-color: var(--accent2); }
+
+    .route-btn-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .route-btn {
+      flex: 1;
+      background: var(--group-bg);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 5px;
+      border-radius: 4px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .route-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .route-btn.primary { background: var(--accent); color: #0f1420; border-color: var(--accent); }
+    .route-btn.primary:hover { opacity: 0.85; color: #0f1420; }
+
+    #gpx-label {
+      display: block;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 4px;
+      border: 1px dashed var(--panel-border);
+      border-radius: 4px;
+      margin-top: 6px;
+      transition: all 0.2s;
+    }
+    #gpx-label:hover { border-color: var(--accent2); color: var(--accent2); }
+    #gpx-file { display: none; }
+
+    #route-toggle {
+      position: absolute;
+      bottom: 24px;
+      left: 16px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      color: var(--text-dim);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      z-index: 400;
+      box-shadow: var(--shadow);
+      transition: all 0.2s;
+    }
+    #route-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    .no-map-msg {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0d1119;
+      color: var(--text-dim);
+      gap: 12px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .no-map-msg h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .no-map-msg p { font-size: 14px; line-height: 1.6; max-width: 400px; }
+    .no-map-msg code {
+      background: var(--panel-bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--accent2);
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>🗺 Trip Planner</h1>
+  <span class="subtitle">Jim's Adventure Map</span>
+  <div class="header-spacer"></div>
+  <input id="api-key-input" type="text" placeholder="Paste your Google Maps API key…" />
+  <button id="load-btn" onclick="loadMapWithKey()">Load Map</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LAYER PANEL -->
+  <div id="layer-panel">
+    <div id="panel-header">
+      <span>Layers</span>
+      <button id="toggle-all-btn" onclick="toggleAllLayers()">All Off</button>
+    </div>
+    <div id="layers-list"><!-- populated by JS --></div>
+    <button id="search-area-btn" onclick="searchThisArea()" disabled>🔍 Search This Area</button>
+    <div id="status-bar">Enter your API key to begin.</div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-container">
+    <div class="no-map-msg" id="no-map-msg">
+      <h2>Ready to Explore</h2>
+      <p>Paste your <code>Google Maps API Key</code> in the header and click <strong>Load Map</strong> to begin.</p>
+      <p style="font-size:12px; margin-top:8px;">Your key stays in this browser session only and is never stored or transmitted anywhere except to Google's APIs.</p>
+    </div>
+    <div id="map"></div>
+
+    <!-- HOVER TOOLTIP -->
+    <div id="hover-tooltip">
+      <div class="tooltip-name" id="tt-name"></div>
+      <div class="tooltip-meta" id="tt-meta"></div>
+      <a class="tooltip-gmaps" id="tt-gmaps" href="#" target="_blank">↗ Open in Google Maps</a>
+    </div>
+
+    <!-- CLICK POPUP -->
+    <div id="click-popup">
+      <button id="popup-close" onclick="closePopup()">✕</button>
+      <img id="popup-photo" alt="Place photo"/>
+      <div id="popup-photo-placeholder">📍</div>
+      <div id="popup-body">
+        <div id="popup-tag" class="popup-layer-tag"></div>
+        <div id="popup-name"></div>
+        <div class="popup-rating" id="popup-rating-row" style="display:none">
+          <span class="popup-stars" id="popup-stars"></span>
+          <span class="popup-rating-num" id="popup-rating-num"></span>
+          <span class="popup-rating-count" id="popup-rating-count"></span>
+        </div>
+        <div id="popup-star-rating" style="font-size:12px;color:var(--text-dim);margin-bottom:8px;display:none"></div>
+        <hr class="popup-divider"/>
+        <div id="popup-fields"></div>
+        <a id="popup-gmaps-link" href="#" target="_blank">↗ Open in Google Maps</a>
+      </div>
+    </div>
+
+    <!-- ROUTE TOGGLE -->
+    <button id="route-toggle" onclick="toggleRoutePanel()">🛣 Route Planner</button>
+
+    <!-- ROUTE PANEL (hidden by default) -->
+    <div id="route-panel" style="display:none">
+      <h3>🛣 Route Planner</h3>
+      <input class="route-input" id="route-start" placeholder="Start (address or city)" />
+      <input class="route-input" id="route-end" placeholder="End (address or city)" />
+      <select class="route-input" id="route-mode">
+        <option value="DRIVING">🚗 Driving</option>
+        <option value="BICYCLING">🚲 Cycling</option>
+        <option value="WALKING">🚶 Walking</option>
+      </select>
+      <div class="route-btn-row">
+        <button class="route-btn primary" onclick="showRoute()">Show Route</button>
+        <button class="route-btn" onclick="clearRoute()">Clear</button>
+      </div>
+      <label id="gpx-label">📂 Upload GPX File
+        <input type="file" id="gpx-file" accept=".gpx" onchange="loadGPX(event)"/>
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// LAYER CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+const LAYER_CONFIG = [
+  {
+    id: 'lodging-group', type: 'group', label: 'Lodging',
+    children: [
+      {
+        id: 'hotels', type: 'places', label: 'Hotels', color: '#e05252',
+        searchType: 'lodging',
+        keywords: ['hotel'],
+        hover: ['name','rating','userRatingCount','starRating'],
+        click: ['photo','name','rating','userRatingCount','starRating','formattedAddress','websiteUri','nationalPhoneNumber']
+      },
+      {
+        id: 'campgrounds', type: 'places', label: 'Campgrounds', color: '#e8841a',
+        searchType: 'campground',
+        hover: ['name','rating','userRatingCount'],
+        click: ['photo','name','rating','userRatingCount','formattedAddress','websiteUri','nationalPhoneNumber']
+      }
+    ]
+  },
+  {
+    id: 'food-group', type: 'group', label: 'Food',
+    children: [
+      {
+        id: 'restaurants', type: 'places', label: 'Restaurants', color: '#2e6fbf',
+        searchType: 'restaurant',
+        hover: ['name','rating','userRatingCount','primaryTypeDisplayName','priceLevel'],
+        click: ['photo','name','rating','userRatingCount','primaryTypeDisplayName','editorialSummary','formattedAddress','regularOpeningHours','websiteUri','nationalPhoneNumber']
+      },
+      {
+        id: 'grocery', type: 'places', label: 'Grocery Stores', color: '#4a90c4',
+        searchType: 'grocery_or_supermarket',
+        hover: ['name','rating','userRatingCount','primaryTypeDisplayName'],
+        click: ['photo','name','rating','userRatingCount','primaryTypeDisplayName','editorialSummary','formattedAddress','regularOpeningHours','websiteUri','nationalPhoneNumber']
+      },
+      {
+        id: 'convenience', type: 'places', label: 'Convenience Stores', color: '#7ab4d8',
+        searchType: 'convenience_store',
+        hover: ['name','rating','userRatingCount','primaryTypeDisplayName'],
+        click: ['photo','name','rating','userRatingCount','primaryTypeDisplayName','editorialSummary','formattedAddress','regularOpeningHours','websiteUri','nationalPhoneNumber']
+      }
+    ]
+  },
+  {
+    id: 'bike-shops', type: 'places', label: 'Bike Shops', color: '#3daa5c',
+    searchType: 'bicycle_store',
+    hover: ['name','rating','userRatingCount','primaryTypeDisplayName'],
+    click: ['photo','name','rating','userRatingCount','formattedAddress','regularOpeningHours','websiteUri','nationalPhoneNumber']
+  },
+  {
+    id: 'medical', type: 'places', label: 'Medical', color: '#d47fa6',
+    searchType: 'hospital',
+    hover: ['name','rating','userRatingCount','primaryTypeDisplayName'],
+    click: ['photo','name','rating','userRatingCount','formattedAddress','regularOpeningHours','websiteUri','nationalPhoneNumber']
+  }
+];
+
+// Fields that require Places Details API call (not returned in Nearby Search)
+const DETAIL_FIELDS = ['websiteUri','nationalPhoneNumber','regularOpeningHours','editorialSummary','photos'];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let map = null;
+let apiKey = '';
+let layerMarkers = {};     // layerId -> array of {marker, place}
+let layerEnabled = {};     // layerId -> bool
+let seenPlaceIds = new Set();
+let routeRenderer = null;
+let gpxPolyline = null;
+let routePanelOpen = false;
+
+// ═══════════════════════════════════════════════════════════
+// INIT MAP
+// ═══════════════════════════════════════════════════════════
+
+// Called by Google Maps script once loaded
+function initMap() {
+  document.getElementById('no-map-msg').style.display = 'none';
+
+  const saved = getSavedPosition();
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: saved.center,
+    zoom: saved.zoom,
+    mapTypeId: 'roadmap',
+    mapTypeControl: true,
+    mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_LEFT },
+    streetViewControl: false,
+    fullscreenControl: false,
+    zoomControl: true,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+    styles: mapStyles()
+  });
+
+  map.addListener('idle', savePosition);
+  map.addListener('click', closePopup);
+
+  routeRenderer = new google.maps.DirectionsRenderer({
+    map,
+    suppressMarkers: false,
+    polylineOptions: { strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.8 }
+  });
+
+  buildLayerPanel();
+  document.getElementById('search-area-btn').disabled = false;
+  document.getElementById('load-btn').disabled = true;
+  document.getElementById('load-btn').textContent = 'Loaded ✓';
+  setStatus('Map loaded. Click "Search This Area" to find places.');
+}
+
+// Called when user clicks Load Map button
+function loadMapWithKey() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) {
+    alert('Please paste your Google Maps API key first.');
+    return;
+  }
+  if (window.google) {
+    initMap(); // already loaded
+    return;
+  }
+  setStatus('Loading Google Maps…');
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initMap`;
+  script.async = true;
+  script.onerror = () => {
+    setStatus('Failed to load Google Maps. Check your API key and try again.');
+    alert('Failed to load Google Maps. Check your API key in Google Cloud Console and make sure Maps JavaScript API is enabled.');
+  };
+  document.head.appendChild(script);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SAVED POSITION
+// ═══════════════════════════════════════════════════════════
+function savePosition() {
+  if (!map) return;
+  const c = map.getCenter();
+  const pos = { lat: c.lat(), lng: c.lng(), zoom: map.getZoom() };
+  try { localStorage.setItem('tripplanner_pos', JSON.stringify(pos)); } catch(e) {}
+}
+
+function getSavedPosition() {
+  try {
+    const p = JSON.parse(localStorage.getItem('tripplanner_pos'));
+    if (p && p.lat) return { center: { lat: p.lat, lng: p.lng }, zoom: p.zoom || 10 };
+  } catch(e) {}
+  // Default: Dayton, OH
+  return { center: { lat: 39.7589, lng: -84.1916 }, zoom: 10 };
+}
+
+// ═══════════════════════════════════════════════════════════
+// LAYER PANEL
+// ═══════════════════════════════════════════════════════════
+function buildLayerPanel() {
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+
+  function renderLayer(layer, isChild) {
+    const div = document.createElement('div');
+    div.className = 'layer-row' + (isChild ? '' : ' ungrouped-layer');
+    div.dataset.layerId = layer.id;
+
+    layerEnabled[layer.id] = true;
+    layerMarkers[layer.id] = [];
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'layer-checkbox';
+    cb.checked = true;
+    cb.addEventListener('change', () => toggleLayer(layer.id, cb.checked));
+
+    const dot = document.createElement('div');
+    dot.className = 'layer-dot';
+    dot.style.background = layer.color;
+
+    const name = document.createElement('span');
+    name.className = 'layer-name';
+    name.textContent = layer.label;
+
+    const count = document.createElement('span');
+    count.className = 'layer-count';
+    count.id = `count-${layer.id}`;
+    count.textContent = '';
+
+    div.appendChild(cb); div.appendChild(dot); div.appendChild(name); div.appendChild(count);
+    return div;
+  }
+
+  LAYER_CONFIG.forEach(item => {
+    if (item.type === 'group') {
+      // Group header
+      const groupDiv = document.createElement('div');
+
+      const header = document.createElement('div');
+      header.className = 'group-header';
+
+      const chevron = document.createElement('span');
+      chevron.className = 'group-chevron';
+      chevron.textContent = '▾';
+
+      const gcb = document.createElement('input');
+      gcb.type = 'checkbox'; gcb.className = 'group-checkbox'; gcb.checked = true;
+      gcb.addEventListener('change', () => {
+        item.children.forEach(child => {
+          layerEnabled[child.id] = gcb.checked;
+          const childCb = document.querySelector(`[data-layer-id="${child.id}"] input`);
+          if (childCb) childCb.checked = gcb.checked;
+          setLayerVisible(child.id, gcb.checked);
+        });
+      });
+
+      const glabel = document.createElement('span');
+      glabel.className = 'group-label';
+      glabel.textContent = item.label;
+
+      header.appendChild(chevron); header.appendChild(gcb); header.appendChild(glabel);
+
+      const children = document.createElement('div');
+      children.className = 'group-children';
+
+      header.addEventListener('click', (e) => {
+        if (e.target === gcb) return;
+        children.classList.toggle('collapsed');
+        chevron.classList.toggle('collapsed');
+      });
+
+      item.children.forEach(child => children.appendChild(renderLayer(child, true)));
+
+      groupDiv.appendChild(header); groupDiv.appendChild(children);
+      list.appendChild(groupDiv);
+    } else {
+      list.appendChild(renderLayer(item, false));
+    }
+  });
+}
+
+function toggleLayer(layerId, enabled) {
+  layerEnabled[layerId] = enabled;
+  setLayerVisible(layerId, enabled);
+}
+
+function setLayerVisible(layerId, visible) {
+  (layerMarkers[layerId] || []).forEach(({ marker }) => marker.setVisible(visible));
+}
+
+function toggleAllLayers() {
+  const btn = document.getElementById('toggle-all-btn');
+  const allOn = btn.textContent === 'All Off';
+  btn.textContent = allOn ? 'All On' : 'All Off';
+  getAllLeafLayers().forEach(layer => {
+    layerEnabled[layer.id] = !allOn;
+    setLayerVisible(layer.id, !allOn);
+    const cb = document.querySelector(`[data-layer-id="${layer.id}"] input`);
+    if (cb) cb.checked = !allOn;
+  });
+}
+
+function getAllLeafLayers() {
+  const result = [];
+  LAYER_CONFIG.forEach(item => {
+    if (item.type === 'group') item.children.forEach(c => result.push(c));
+    else result.push(item);
+  });
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEARCH THIS AREA
+// ═══════════════════════════════════════════════════════════
+async function searchThisArea() {
+  if (!map) return;
+  setStatus('<span class="spinner"></span> Searching…');
+
+  // Clear existing markers
+  getAllLeafLayers().forEach(layer => {
+    (layerMarkers[layer.id] || []).forEach(({ marker }) => marker.setMap(null));
+    layerMarkers[layer.id] = [];
+    const el = document.getElementById(`count-${layer.id}`);
+    if (el) el.textContent = '';
+  });
+  seenPlaceIds.clear();
+
+  const bounds = map.getBounds();
+  const center = map.getCenter();
+  const radius = Math.min(computeRadius(bounds), 50000); // max 50km
+
+  const activeLayers = getAllLeafLayers().filter(l => layerEnabled[l.id]);
+  if (activeLayers.length === 0) { setStatus('No layers enabled.'); return; }
+
+  // Fire all layer searches in parallel
+  const results = await Promise.allSettled(
+    activeLayers.map(layer => searchLayer(layer, center, radius))
+  );
+
+  let total = 0;
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') total += result.value;
+  });
+
+  setStatus(`Found ${total} places across ${activeLayers.length} active layers.`);
+}
+
+function computeRadius(bounds) {
+  if (!bounds) return 10000;
+  const ne = bounds.getNorthEast();
+  const sw = bounds.getSouthWest();
+  const R = 6371000;
+  const lat1 = ne.lat() * Math.PI/180;
+  const lat2 = sw.lat() * Math.PI/180;
+  const dLat = lat2 - lat1;
+  const dLng = (sw.lng() - ne.lng()) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) / 2;
+}
+
+async function searchLayer(layer, center, radius) {
+  const url = `https://places.googleapis.com/v1/places:searchNearby`;
+  const body = {
+    includedTypes: [layer.searchType],
+    maxResultCount: 20,
+    locationRestriction: {
+      circle: {
+        center: { latitude: center.lat(), longitude: center.lng() },
+        radius: radius
+      }
+    }
+  };
+
+  const fieldMask = buildFieldMask(layer);
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': fieldMask
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    console.error(`Layer ${layer.id} error:`, await resp.text());
+    return 0;
+  }
+
+  const data = await resp.json();
+  const places = data.places || [];
+  let count = 0;
+
+  places.forEach(place => {
+    const placeId = place.id || place.name;
+    if (seenPlaceIds.has(placeId)) return;
+    seenPlaceIds.add(placeId);
+
+    const lat = place.location?.latitude;
+    const lng = place.location?.longitude;
+    if (!lat || !lng) return;
+
+    const marker = createMarker(place, layer, lat, lng);
+    layerMarkers[layer.id].push({ marker, place, layer });
+    count++;
+  });
+
+  const countEl = document.getElementById(`count-${layer.id}`);
+  if (countEl) countEl.textContent = count || '';
+
+  return count;
+}
+
+function buildFieldMask(layer) {
+  const base = ['id','displayName','location','types','primaryTypeDisplayName'];
+  const extras = new Set();
+  [...(layer.hover||[]), ...(layer.click||[])].forEach(f => {
+    if (f === 'name') extras.add('displayName');
+    else if (f === 'rating') extras.add('rating');
+    else if (f === 'userRatingCount') extras.add('userRatingCount');
+    else if (f === 'photo') extras.add('photos');
+    else if (f === 'formattedAddress') extras.add('formattedAddress');
+    else if (f === 'websiteUri') extras.add('websiteUri');
+    else if (f === 'nationalPhoneNumber') extras.add('nationalPhoneNumber');
+    else if (f === 'regularOpeningHours') extras.add('regularOpeningHours');
+    else if (f === 'editorialSummary') extras.add('editorialSummary');
+    else if (f === 'priceLevel') extras.add('priceLevel');
+    else if (f === 'starRating') extras.add('starRating');
+    else if (f === 'primaryTypeDisplayName') extras.add('primaryTypeDisplayName');
+  });
+  return [...new Set([...base, ...extras])].map(f => `places.${f}`).join(',');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MARKERS
+// ═══════════════════════════════════════════════════════════
+function createMarker(place, layer, lat, lng) {
+  const marker = new google.maps.Marker({
+    position: { lat, lng },
+    map: layerEnabled[layer.id] ? map : null,
+    title: place.displayName?.text || '',
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: layer.color,
+      fillOpacity: 0.9,
+      strokeColor: '#ffffff',
+      strokeWeight: 1.5,
+      scale: 8
+    }
+  });
+
+  // Hover
+  marker.addListener('mouseover', (e) => showHoverTooltip(place, layer, e));
+  marker.addListener('mouseout', hideHoverTooltip);
+
+  // Click
+  marker.addListener('click', () => showClickPopup(place, layer));
+
+  return marker;
+}
+
+// ═══════════════════════════════════════════════════════════
+// HOVER TOOLTIP
+// ═══════════════════════════════════════════════════════════
+function showHoverTooltip(place, layer, event) {
+  const tt = document.getElementById('hover-tooltip');
+  const name = place.displayName?.text || 'Unknown';
+  document.getElementById('tt-name').textContent = name;
+
+  const lines = [];
+  if (place.rating) {
+    const stars = '★'.repeat(Math.round(place.rating)) + '☆'.repeat(5 - Math.round(place.rating));
+    let line = `${stars} ${place.rating.toFixed(1)}`;
+    if (place.userRatingCount) line += ` (${place.userRatingCount.toLocaleString()})`;
+    lines.push(line);
+  }
+  if (place.primaryTypeDisplayName?.text) lines.push(place.primaryTypeDisplayName.text);
+  if (place.priceLevel) lines.push(priceLevelStr(place.priceLevel));
+  if (place.starRating) lines.push(`${place.starRating}-star`);
+
+  document.getElementById('tt-meta').textContent = lines.join(' · ');
+
+  const gmapsUrl = getGMapsUrl(place);
+  document.getElementById('tt-gmaps').href = gmapsUrl;
+
+  // Position near cursor
+  positionTooltip(tt, event);
+  tt.style.display = 'block';
+}
+
+function positionTooltip(tt, event) {
+  // Use pixel position from map overlay
+  const mapDiv = document.getElementById('map');
+  const rect = mapDiv.getBoundingClientRect();
+  const x = event.domEvent?.clientX - rect.left || 100;
+  const y = event.domEvent?.clientY - rect.top || 100;
+  tt.style.left = (x + 16) + 'px';
+  tt.style.top = (y - 10) + 'px';
+}
+
+function hideHoverTooltip() {
+  document.getElementById('hover-tooltip').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLICK POPUP
+// ═══════════════════════════════════════════════════════════
+function showClickPopup(place, layer) {
+  const popup = document.getElementById('click-popup');
+  popup.classList.add('visible');
+  hideHoverTooltip();
+
+  // Tag
+  const tag = document.getElementById('popup-tag');
+  tag.textContent = layer.label;
+  tag.style.background = layer.color;
+
+  // Name
+  document.getElementById('popup-name').textContent = place.displayName?.text || 'Unknown';
+
+  // Rating row
+  const ratingRow = document.getElementById('popup-rating-row');
+  if (place.rating) {
+    ratingRow.style.display = 'flex';
+    document.getElementById('popup-stars').textContent = '★'.repeat(Math.round(place.rating)) + '☆'.repeat(5-Math.round(place.rating));
+    document.getElementById('popup-rating-num').textContent = place.rating.toFixed(1);
+    document.getElementById('popup-rating-count').textContent = place.userRatingCount ? `(${place.userRatingCount.toLocaleString()} reviews)` : '';
+  } else {
+    ratingRow.style.display = 'none';
+  }
+
+  // Star rating (hotels)
+  const starRatingEl = document.getElementById('popup-star-rating');
+  if (place.starRating) {
+    starRatingEl.style.display = 'block';
+    starRatingEl.textContent = `${place.starRating}-star ${layer.label.toLowerCase()}`;
+  } else {
+    starRatingEl.style.display = 'none';
+  }
+
+  // Photo
+  const photo = document.getElementById('popup-photo');
+  const placeholder = document.getElementById('popup-photo-placeholder');
+  if (place.photos && place.photos.length > 0) {
+    const ref = place.photos[0].name;
+    const photoUrl = `https://places.googleapis.com/v1/${ref}/media?maxHeightPx=300&key=${apiKey}`;
+    photo.src = photoUrl;
+    photo.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    photo.style.display = 'none';
+    placeholder.style.display = 'flex';
+  }
+
+  // Fields
+  const fieldsDiv = document.getElementById('popup-fields');
+  fieldsDiv.innerHTML = '';
+
+  const addField = (icon, text, isLink) => {
+    if (!text) return;
+    const row = document.createElement('div');
+    row.className = 'popup-field';
+    const iconEl = document.createElement('div');
+    iconEl.className = 'popup-field-icon';
+    iconEl.textContent = icon;
+    const textEl = document.createElement('div');
+    textEl.className = 'popup-field-text';
+    if (isLink) {
+      const a = document.createElement('a');
+      a.href = text; a.target = '_blank';
+      a.textContent = text.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      textEl.appendChild(a);
+    } else {
+      textEl.textContent = text;
+    }
+    row.appendChild(iconEl); row.appendChild(textEl);
+    fieldsDiv.appendChild(row);
+  };
+
+  if (place.primaryTypeDisplayName?.text) addField('🏷', place.primaryTypeDisplayName.text);
+  if (place.editorialSummary?.text) addField('📝', place.editorialSummary.text);
+  if (place.priceLevel) addField('💰', priceLevelStr(place.priceLevel));
+  if (place.formattedAddress) addField('📍', place.formattedAddress);
+  if (place.regularOpeningHours?.weekdayDescriptions) {
+    const today = new Date().getDay();
+    const dayIdx = today === 0 ? 6 : today - 1;
+    const todayHours = place.regularOpeningHours.weekdayDescriptions[dayIdx];
+    if (todayHours) addField('🕐', todayHours);
+  }
+  if (place.websiteUri) addField('🌐', place.websiteUri, true);
+  if (place.nationalPhoneNumber) addField('📞', place.nationalPhoneNumber);
+
+  // Google Maps link
+  const gmapsLink = document.getElementById('popup-gmaps-link');
+  gmapsLink.href = getGMapsUrl(place);
+}
+
+function closePopup() {
+  document.getElementById('click-popup').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function getGMapsUrl(place) {
+  if (place.id) return `https://www.google.com/maps/place/?q=place_id:${place.id}`;
+  const loc = place.location;
+  if (loc) return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
+  return 'https://www.google.com/maps';
+}
+
+function priceLevelStr(level) {
+  const map = {
+    'PRICE_LEVEL_FREE': 'Free',
+    'PRICE_LEVEL_INEXPENSIVE': '$',
+    'PRICE_LEVEL_MODERATE': '$$',
+    'PRICE_LEVEL_EXPENSIVE': '$$$',
+    'PRICE_LEVEL_VERY_EXPENSIVE': '$$$$'
+  };
+  return map[level] || '';
+}
+
+function setStatus(html) {
+  document.getElementById('status-bar').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROUTE PLANNER
+// ═══════════════════════════════════════════════════════════
+function toggleRoutePanel() {
+  routePanelOpen = !routePanelOpen;
+  document.getElementById('route-panel').style.display = routePanelOpen ? 'block' : 'none';
+  document.getElementById('route-toggle').style.display = routePanelOpen ? 'none' : 'block';
+}
+
+function showRoute() {
+  const start = document.getElementById('route-start').value.trim();
+  const end = document.getElementById('route-end').value.trim();
+  const mode = document.getElementById('route-mode').value;
+  if (!start || !end) { alert('Please enter start and end points.'); return; }
+
+  const ds = new google.maps.DirectionsService();
+  ds.route({
+    origin: start, destination: end,
+    travelMode: google.maps.TravelMode[mode]
+  }, (result, status) => {
+    if (status === 'OK') {
+      if (gpxPolyline) { gpxPolyline.setMap(null); gpxPolyline = null; }
+      routeRenderer.setDirections(result);
+    } else {
+      alert('Could not find route: ' + status);
+    }
+  });
+}
+
+function clearRoute() {
+  routeRenderer.setDirections({ routes: [] });
+  if (gpxPolyline) { gpxPolyline.setMap(null); gpxPolyline = null; }
+}
+
+function loadGPX(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(e.target.result, 'text/xml');
+    const pts = [...xml.querySelectorAll('trkpt,rtept,wpt')].map(pt => ({
+      lat: parseFloat(pt.getAttribute('lat')),
+      lng: parseFloat(pt.getAttribute('lon'))
+    })).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+    if (pts.length === 0) { alert('No track points found in GPX file.'); return; }
+
+    if (gpxPolyline) gpxPolyline.setMap(null);
+    routeRenderer.setDirections({ routes: [] });
+
+    gpxPolyline = new google.maps.Polyline({
+      path: pts,
+      strokeColor: '#e8a020',
+      strokeWeight: 4,
+      strokeOpacity: 0.85,
+      map
+    });
+
+    // Fit map to route
+    const bounds = new google.maps.LatLngBounds();
+    pts.forEach(p => bounds.extend(p));
+    map.fitBounds(bounds);
+    setStatus(`GPX route loaded: ${pts.length} points from "${file.name}"`);
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAP STYLES (dark terrain feel)
+// ═══════════════════════════════════════════════════════════
+function mapStyles() {
+  return [
+    { elementType: 'geometry', stylers: [{ color: '#1a2035' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0f1420' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#8896aa' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2d3548' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1a2035' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3d4a6b' }] },
+    { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#b8c4d4' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1e3a' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4a7a9b' }] },
+    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#1e2a3a' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2e1a' }] },
+    { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#4a7a4a' }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2d3548' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#3d4a6b' }] },
+    { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#6a7a8a' }] },
+  ];
+}
+</script>
+</body>
+</html>
