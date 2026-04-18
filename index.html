@@ -285,8 +285,9 @@ window.initMap = async function() {
 
   // Load config from sheet
   document.getElementById('config-loading').classList.add('show');
+  // debug to LOG LAYER structure 
+  // try { await loadLayerConfig();console.log('LAYERS:', JSON.stringify(LAYERS)); }
   try { await loadLayerConfig(); }
-  /debug to LOG LAYER structure try { await loadLayerConfig();console.log('LAYERS:', JSON.stringify(LAYERS)); }
   catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
   document.getElementById('config-loading').classList.remove('show');
 
