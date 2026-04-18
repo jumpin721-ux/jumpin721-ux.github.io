@@ -299,6 +299,8 @@ async function loadLayerConfig() {
   if (!resp.ok) throw new Error('Could not read config sheet ('+resp.status+')');
   var data = await resp.json();
   var rows = data.values || [];
+  console.log('Total rows:', rows.length);
+  rows.forEach(function(r, i){ console.log('Row '+i+':', JSON.stringify(r)); });
   LAYERS = [];
   var currentGroup = null;
 
