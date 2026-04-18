@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Places API Diagnostic Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0f1420; color: #e2e8f0; min-height: 100vh; padding: 24px; }
+    h1 { color: #e8a020; font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #8896aa; font-size: 12px; margin-bottom: 24px; }
+    .card { background: #1a1f2e; border: 1px solid #2d3548; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    label { font-size: 11px; color: #8896aa; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+    input, select { width: 100%; background: #0f1420; border: 1px solid #2d3548; color: #e2e8f0; padding: 8px 10px; border-radius: 4px; font-family: monospace; font-size: 13px; margin-bottom: 12px; }
+    input:focus, select:focus { outline: none; border-color: #3d9be9; }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+    button { background: #e8a020; color: #0f1420; border: none; padding: 10px 20px; border-radius: 4px; font-family: monospace; font-weight: 700; font-size: 13px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; }
+    button:hover { opacity: 0.85; }
+    button.secondary { background: #2d3548; color: #e2e8f0; margin-left: 8px; }
+    #status { font-size: 12px; color: #8896aa; margin-top: 10px; min-height: 18px; }
+    #status.error { color: #e05252; }
+    #status.ok { color: #3daa5c; }
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .results-header span { color: #e8a020; font-size: 13px; font-weight: 700; }
+    .result-item { background: #0f1420; border: 1px solid #2d3548; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+    .result-item:hover { border-color: #3d9be9; }
+    .result-name { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+    .result-id { font-size: 10px; color: #8896aa; margin-bottom: 8px; word-break: break-all; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .tag { font-size: 10px; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.5px; }
+    .tag.primary { background: #e8a020; color: #0f1420; font-weight: 700; }
+    .tag.type { background: #1e2a3a; color: #3d9be9; border: 1px solid #2d3548; }
+    .tag.tableb { background: #1a2e1a; color: #4a7a4a; border: 1px solid #2d3548; font-style: italic; }
+    .result-address { font-size: 11px; color: #8896aa; margin-top: 4px; }
+    .result-rating { font-size: 11px; color: #e8a020; margin-top: 2px; }
+    .copy-btn { font-size: 10px; background: #2d3548; color: #8896aa; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; float: right; font-family: monospace; }
+    .copy-btn:hover { color: #e2e8f0; }
+    .section-title { font-size: 11px; color: #8896aa; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; margin-top: 8px; }
+    .raw-toggle { font-size: 10px; color: #3d9be9; cursor: pointer; text-decoration: underline; margin-top: 8px; display: inline-block; }
+    .raw-json { background: #0a0e17; border: 1px solid #2d3548; border-radius: 4px; padding: 8px; font-size: 10px; color: #8896aa; white-space: pre-wrap; word-break: break-all; margin-top: 6px; display: none; max-height: 200px; overflow-y: auto; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #2d3548; border-top-color: #e8a020; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 11px; }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+    #no-results { color: #8896aa; font-size: 13px; text-align: center; padding: 24px; display: none; }
+  </style>
+</head>
+<body>
+
+<h1>🔍 Places API Diagnostic Tool</h1>
+<p class="subtitle">Search for a place by name to see exactly what the Places API returns — use this to find the right type strings for your layer config.</p>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <label>Google Maps API Key</label>
+      <input type="password" id="api-key" placeholder="Paste your browser API key…" autocomplete="off"/>
+    </div>
+    <div>
+      <label>Search Location (city, address, or lat,lng)</label>
+      <input type="text" id="location" value="Dayton, OH" placeholder="e.g. Dayton, OH"/>
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>Search Query (place name or type)</label>
+      <input type="text" id="query" placeholder="e.g. Holiday Inn, hospital, bicycle shop…"/>
+    </div>
+    <div>
+      <label>Search Radius (meters)</label>
+      <select id="radius">
+        <option value="5000">5 km</option>
+        <option value="10000" selected>10 km</option>
+        <option value="25000">25 km</option>
+        <option value="50000">50 km</option>
+      </select>
+    </div>
+  </div>
+  <button onclick="runSearch()">Search Places API</button>
+  <button class="secondary" onclick="clearResults()">Clear</button>
+  <div id="status"></div>
+</div>
+
+<div class="card" id="results-card" style="display:none">
+  <div class="results-header">
+    <span id="results-count"></span>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#e8a020"></div> Primary Type</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3d9be9"></div> Table A Types</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4a7a4a"></div> Table B Types</div>
+    </div>
+  </div>
+  <div id="no-results">No results found. Try a different search term or increase the radius.</div>
+  <div id="results-list"></div>
+</div>
+
+<script>
+// Table B types (cannot be used in includedTypes searches)
+const TABLE_B_TYPES = new Set([
+  'administrative_area_level_1','administrative_area_level_2','administrative_area_level_3',
+  'administrative_area_level_4','administrative_area_level_5','administrative_area_level_6',
+  'administrative_area_level_7','archipelago','colloquial_area','continent','country',
+  'establishment','finance','floor','food','general_contractor','geocode','health',
+  'intersection','landmark','locality','natural_feature','neighborhood','place_of_worship',
+  'plus_code','point_of_interest','political','post_box','postal_code','postal_code_prefix',
+  'postal_code_suffix','postal_town','premise','room','route','street_address',
+  'street_number','sublocality','sublocality_level_1','sublocality_level_2',
+  'sublocality_level_3','sublocality_level_4','sublocality_level_5','subpremise',
+  'town_square'
+]);
+
+async function geocodeLocation(location, apiKey) {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=${apiKey}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (data.status === 'OK') {
+    return data.results[0].geometry.location;
+  }
+  throw new Error('Could not geocode location: ' + location);
+}
+
+async function runSearch() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const location = document.getElementById('location').value.trim();
+  const query = document.getElementById('query').value.trim();
+  const radius = document.getElementById('radius').value;
+
+  if (!apiKey) { setStatus('Please enter your API key.', 'error'); return; }
+  if (!query) { setStatus('Please enter a search query.', 'error'); return; }
+
+  setStatus('<span class="spinner"></span>Geocoding location…');
+  document.getElementById('results-card').style.display = 'none';
+
+  try {
+    // Geocode the location
+    const latLng = await geocodeLocation(location, apiKey);
+    setStatus('<span class="spinner"></span>Searching Places API…');
+
+    // Text search using Places API New
+    const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.types,places.primaryType,places.primaryTypeDisplayName,places.rating,places.userRatingCount,places.location';
+
+    const body = {
+      textQuery: query,
+      locationBias: {
+        circle: {
+          center: { latitude: latLng.lat, longitude: latLng.lng },
+          radius: parseFloat(radius)
+        }
+      },
+      maxResultCount: 20
+    };
+
+    const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || 'API error: ' + resp.status);
+    }
+
+    const data = await resp.json();
+    const places = data.places || [];
+    renderResults(places, query);
+
+  } catch(e) {
+    setStatus('Error: ' + e.message, 'error');
+  }
+}
+
+function renderResults(places, query) {
+  const list = document.getElementById('results-list');
+  const countEl = document.getElementById('results-count');
+  const noResults = document.getElementById('no-results');
+  list.innerHTML = '';
+
+  document.getElementById('results-card').style.display = 'block';
+
+  if (places.length === 0) {
+    countEl.textContent = 'No results for "' + query + '"';
+    noResults.style.display = 'block';
+    setStatus('Search complete — no results found.', 'error');
+    return;
+  }
+
+  noResults.style.display = 'none';
+  countEl.textContent = places.length + ' result' + (places.length !== 1 ? 's' : '') + ' for "' + query + '"';
+  setStatus('Found ' + places.length + ' places.', 'ok');
+
+  places.forEach(function(p, idx) {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+
+    const name = p.displayName?.text || 'Unknown';
+    const types = p.types || [];
+    const primaryType = p.primaryType || '';
+    const primaryTypeDisplay = p.primaryTypeDisplayName?.text || '';
+
+    // Separate Table A and Table B types
+    const tableATypes = types.filter(t => t !== primaryType && !TABLE_B_TYPES.has(t));
+    const tableBTypes = types.filter(t => TABLE_B_TYPES.has(t));
+
+    let html = `
+      <button class="copy-btn" onclick="copyTypes(${idx})">Copy Types</button>
+      <div class="result-name">${name}</div>
+      <div class="result-id">Place ID: ${p.id || 'N/A'}</div>
+    `;
+
+    if (p.rating) {
+      html += `<div class="result-rating">⭐ ${p.rating.toFixed(1)} (${(p.userRatingCount||0).toLocaleString()} reviews)</div>`;
+    }
+    if (p.formattedAddress) {
+      html += `<div class="result-address">📍 ${p.formattedAddress}</div>`;
+    }
+
+    html += `<div class="section-title" style="margin-top:10px">Type Information</div>`;
+    html += `<div class="tags">`;
+
+    if (primaryType) {
+      html += `<span class="tag primary" title="Primary Type — use this in includedTypes">🏷 ${primaryType}</span>`;
+    }
+    tableATypes.forEach(t => {
+      html += `<span class="tag type" title="Table A — can use in includedTypes">${t}</span>`;
+    });
+    tableBTypes.forEach(t => {
+      html += `<span class="tag tableb" title="Table B — cannot use in includedTypes searches">${t}</span>`;
+    });
+
+    html += `</div>`;
+
+    if (primaryTypeDisplay) {
+      html += `<div style="font-size:11px;color:#8896aa">Display name: "${primaryTypeDisplay}"</div>`;
+    }
+
+    html += `<span class="raw-toggle" onclick="toggleRaw(${idx})">Show raw JSON</span>`;
+    html += `<div class="raw-json" id="raw-${idx}">${JSON.stringify(p, null, 2)}</div>`;
+
+    div.innerHTML = html;
+    div.dataset.types = JSON.stringify({ primaryType, tableATypes, tableBTypes, name });
+    list.appendChild(div);
+  });
+}
+
+function toggleRaw(idx) {
+  const el = document.getElementById('raw-' + idx);
+  el.style.display = el.style.display === 'none' || !el.style.display ? 'block' : 'none';
+}
+
+function copyTypes(idx) {
+  const items = document.querySelectorAll('.result-item');
+  const data = JSON.parse(items[idx].dataset.types);
+  const text = `Place: ${data.name}\nPrimary Type: ${data.primaryType}\nTable A Types: ${data.tableATypes.join(', ')}\nTable B Types (not usable in search): ${data.tableBTypes.join(', ')}`;
+  navigator.clipboard.writeText(text).then(function() {
+    const btn = items[idx].querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy Types'; }, 2000);
+  });
+}
+
+function clearResults() {
+  document.getElementById('results-card').style.display = 'none';
+  document.getElementById('results-list').innerHTML = '';
+  document.getElementById('status').textContent = '';
+  document.getElementById('query').value = '';
+}
+
+function setStatus(html, type) {
+  const el = document.getElementById('status');
+  el.innerHTML = html;
+  el.className = type || '';
+}
+
+document.getElementById('query').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') runSearch();
+});
+</script>
+</body>
+</html>
