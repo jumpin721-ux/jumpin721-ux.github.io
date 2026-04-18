@@ -468,6 +468,9 @@ function searchLayer(layer,center,radius){
       body:JSON.stringify(req)
     }).then(function(resp){
       if(!resp.ok) return 0;
+      resp.clone().json().then(function(d){ 
+      if(layer.id==='hotels') console.log('Hotels API response:', JSON.stringify(d)); 
+      });
       return resp.json().then(function(data){
         var places=data.places||[],count=0;
         places.forEach(function(p){
