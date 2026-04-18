@@ -36,28 +36,22 @@
 
     /* FLOATING LAYERS WIDGET */
     #layers-widget { position: absolute; top: 12px; left: 12px; z-index: 400; width: 260px; }
-
     #layers-toggle-btn { background: white; border: none; border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.25); width: 100%; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #333; transition: box-shadow 0.2s; }
     #layers-toggle-btn:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.3); }
     #layers-toggle-btn .btn-icon { font-size: 16px; }
     #layers-toggle-btn .btn-label { flex: 1; text-align: left; }
     #layers-toggle-btn .btn-arrow { font-size: 10px; color: #888; transition: transform 0.2s; }
     #layers-toggle-btn.open .btn-arrow { transform: rotate(180deg); }
-
     #layers-dropdown { background: white; border-radius: 8px; margin-top: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); overflow: hidden; display: none; max-height: calc(100vh - 140px); flex-direction: column; }
     #layers-dropdown.open { display: flex; }
-
     #layers-header { background: #f8f8f8; border-bottom: 1px solid #e8e8e8; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
     #layers-header span { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; }
     #toggle-all { font-size: 10px; background: none; border: 1px solid #ddd; color: #666; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
     #toggle-all:hover { border-color: #e8a020; color: #e8a020; }
-
     #layers-list { overflow-y: auto; flex: 1; padding: 6px 0; }
     #layers-list::-webkit-scrollbar { width: 4px; }
     #layers-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
-
     #layers-status { padding: 6px 12px; font-size: 11px; color: #888; border-top: 1px solid #eee; flex-shrink: 0; min-height: 26px; }
-
     .group-hdr { display: flex; align-items: center; gap: 8px; padding: 5px 12px 3px; cursor: pointer; user-select: none; }
     .group-hdr:hover { background: #f5f5f5; }
     .chevron { font-size: 9px; color: #aaa; transition: transform 0.2s; width: 10px; }
@@ -65,7 +59,6 @@
     .group-cb { width: 13px; height: 13px; cursor: pointer; accent-color: #e8a020; }
     .group-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; flex: 1; }
     .group-kids.hidden { display: none; }
-
     .layer-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 24px; cursor: pointer; transition: background 0.15s; }
     .layer-row.ungrouped { padding-left: 12px; }
     .layer-row:hover { background: #f5f5f5; }
@@ -74,7 +67,7 @@
     .layer-lbl { font-size: 13px; color: #333; flex: 1; }
     .layer-cnt { font-size: 10px; color: #aaa; min-width: 20px; text-align: right; }
 
-    /* SEARCH THIS AREA BUTTON */
+    /* SEARCH BTN */
     #search-btn { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 400; background: white; border: none; border-radius: 20px; padding: 8px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #333; cursor: pointer; display: none; align-items: center; gap: 6px; transition: box-shadow 0.2s; white-space: nowrap; }
     #search-btn:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.3); }
     #search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -83,9 +76,9 @@
     #search-btn.searching .spin { display: inline-block; }
 
     /* TOOLTIP */
-    #tooltip { position: absolute; background: #1a1f2e; border: 1px solid #2d3548; border-radius: 8px; padding: 8px 12px; pointer-events: all; z-index: 500; max-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: none; }
+    #tooltip { position: absolute; background: #1a1f2e; border: 1px solid #2d3548; border-radius: 8px; padding: 8px 12px; pointer-events: all; z-index: 500; max-width: 240px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: none; }
     .tt-name { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 600; color: #e2e8f0; margin-bottom: 2px; }
-    .tt-meta { font-size: 11px; color: #8896aa; line-height: 1.5; }
+    .tt-meta { font-size: 11px; color: #8896aa; line-height: 1.6; }
     .tt-link { font-size: 11px; color: #3d9be9; text-decoration: none; display: block; margin-top: 4px; }
     .tt-link:hover { text-decoration: underline; }
 
@@ -143,20 +136,13 @@
 
 <div id="main">
   <div id="map-wrap">
-
     <div id="splash">
       <h2>Ready to Explore</h2>
       <p>Paste your Google Maps API Key in the header and click <strong>Load Map</strong> to begin.</p>
     </div>
-
     <div id="map"></div>
+    <div id="config-loading"><div class="big-spin"></div><span>Loading layer config…</span></div>
 
-    <div id="config-loading">
-      <div class="big-spin"></div>
-      <span>Loading layer config…</span>
-    </div>
-
-    <!-- FLOATING LAYERS WIDGET -->
     <div id="layers-widget">
       <button id="layers-toggle-btn" onclick="toggleLayersPanel()">
         <span class="btn-icon">🗂</span>
@@ -164,29 +150,20 @@
         <span class="btn-arrow">▼</span>
       </button>
       <div id="layers-dropdown">
-        <div id="layers-header">
-          <span>Map Layers</span>
-          <button id="toggle-all">All Off</button>
-        </div>
+        <div id="layers-header"><span>Map Layers</span><button id="toggle-all">All Off</button></div>
         <div id="layers-list"></div>
         <div id="layers-status">Load map to begin.</div>
       </div>
     </div>
 
-    <!-- SEARCH THIS AREA -->
-    <button id="search-btn" disabled>
-      <span class="spin"></span>
-      🔍 Search This Area
-    </button>
+    <button id="search-btn" disabled><span class="spin"></span>🔍 Search This Area</button>
 
-    <!-- TOOLTIP -->
     <div id="tooltip">
       <div class="tt-name" id="tt-name"></div>
       <div class="tt-meta" id="tt-meta"></div>
       <a class="tt-link" id="tt-link" href="#" target="_blank">↗ Open in Google Maps</a>
     </div>
 
-    <!-- POPUP -->
     <div id="popup">
       <button id="popup-close">✕</button>
       <img id="popup-photo" alt="photo"/>
@@ -199,7 +176,6 @@
           <span class="popup-rnum" id="popup-rnum"></span>
           <span class="popup-rcnt" id="popup-rcnt"></span>
         </div>
-        <div id="popup-starrating" style="font-size:12px;color:#888;margin-bottom:8px;display:none"></div>
         <hr class="popup-divider"/>
         <div id="popup-fields"></div>
         <a id="popup-gmaps" href="#" target="_blank">↗ Open in Google Maps</a>
@@ -207,7 +183,6 @@
     </div>
 
     <button id="route-toggle">🛣 Route Planner</button>
-
     <div id="route-panel">
       <h3>🛣 Route Planner</h3>
       <input class="ri" id="r-start" placeholder="Start (address or city)"/>
@@ -221,24 +196,29 @@
         <button class="rbtn primary" id="r-go">Show Route</button>
         <button class="rbtn" id="r-clear">Clear</button>
       </div>
-      <label id="gpx-label">📂 Upload GPX File
-        <input type="file" id="gpx-file" accept=".gpx"/>
-      </label>
+      <label id="gpx-label">📂 Upload GPX File<input type="file" id="gpx-file" accept=".gpx"/></label>
     </div>
-
   </div>
 </div>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────
-const SHEET_ID = '15rXYK5K1PCI-iN50fPHjCX8RkYB0Ka90phN55ikGZEU';
-const SHEET_NAME = 'Sheet1';
-const COL = { LAYER:0, TYPE:1, GROUP:2, SEARCH_FOR:3, API_TYPE:4, COLOR:5, ICON:6, SHEET_TAB:7, HOVER_START:8, CLICK_START:13 };
+const LAYERS_SHEET_ID = '15rXYK5K1PCI-iN50fPHjCX8RkYB0Ka90phN55ikGZEU';
+const LAYERS_TAB = 'Sheet1';
+const IMAGES_FOLDER_ID = '1roG8susT1hQp8DDXZW28rXVHoyarhCt3';
+
+const COL = {
+  LAYER:0, TYPE:1, GROUP:2, SEARCH_FOR:3, API_TYPE:4,
+  COLOR:5, ICON:6, SHEET_ID:7, TAB:8,
+  HOVER_START:9, CLICK_START:14
+};
 
 // ── STATE ─────────────────────────────────────────────────
 let map, apiKey='', markers={}, enabled={}, seen=new Set();
 let routeRenderer, gpxLine, routeOpen=false, layersPanelOpen=false;
 let LAYERS=[];
+let sheetLoaded={};      // tracks which sheet layers have been loaded
+let imageCache={};       // filename -> Drive file ID cache
 var _hideTimer = null;
 
 // ── BOOT ──────────────────────────────────────────────────
@@ -248,7 +228,7 @@ document.getElementById('load-btn').addEventListener('click', function() {
   if (window.google && window.google.maps) { initMap(); return; }
   setStatus('Loading Google Maps…');
   var s = document.createElement('script');
-  s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&callback=initMap&loading=async';
+  s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&libraries=routes&callback=initMap&loading=async';
   s.async = true;
   s.onerror = function(){ setStatus('Failed to load. Check your API key.'); };
   document.head.appendChild(s);
@@ -276,6 +256,7 @@ window.initMap = async function() {
   map.addListener('click', closePopup);
   document.getElementById('tooltip').addEventListener('mouseenter', function(){ clearTimeout(_hideTimer); });
   document.getElementById('tooltip').addEventListener('mouseleave', scheduleHide);
+
   routeRenderer = new google.maps.DirectionsRenderer({
     map: map, suppressMarkers: false,
     polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
@@ -283,7 +264,6 @@ window.initMap = async function() {
   document.getElementById('load-btn').disabled = true;
   document.getElementById('load-btn').textContent = 'Loaded ✓';
 
-  // Load config from sheet
   document.getElementById('config-loading').classList.add('show');
   try { await loadLayerConfig(); }
   catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
@@ -295,9 +275,9 @@ window.initMap = async function() {
   setStatus('Map loaded. Click Search This Area to find places.');
 };
 
-// ── LOAD CONFIG FROM SHEET ────────────────────────────────
+// ── LOAD LAYER CONFIG ─────────────────────────────────────
 async function loadLayerConfig() {
-  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(SHEET_NAME)+'?key='+apiKey;
+  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+LAYERS_SHEET_ID+'/values/'+encodeURIComponent(LAYERS_TAB)+'?key='+apiKey;
   var resp = await fetch(url);
   if (!resp.ok) throw new Error('Could not read config sheet ('+resp.status+')');
   var data = await resp.json();
@@ -308,27 +288,39 @@ async function loadLayerConfig() {
   for (var i=1; i<rows.length; i++) {
     var row = rows[i];
     if (!row || !row[COL.LAYER]) continue;
+
     var layerName = (row[COL.LAYER]||'').trim();
     var layerType = (row[COL.TYPE]||'').trim();
-    var groupName = (row[COL.GROUP]||'').trim();
+
+    // Skip rows with no Type — used to disable layers
+    if (!layerType) continue;
+
+    var groupName = (row[COL.GROUP]||'').trim().replace(/^-$/,'');
     var apiType   = (row[COL.API_TYPE]||'').trim();
     var colorRaw  = (row[COL.COLOR]||'').trim();
-    var sheetTab  = (row[COL.SHEET_TAB]||'').trim();
+    var sheetId   = (row[COL.SHEET_ID]||'').trim();
+    var tabName   = (row[COL.TAB]||'').trim().replace(/^-$/,'');
     var color     = parseColor(colorRaw);
 
     var hover=[], click=[];
-    for (var h=0; h<5; h++) { var v=row[COL.HOVER_START+h]; if(v&&v.trim()) hover.push(normalizeField(v.trim())); }
-    for (var c=0; c<11; c++) { var v2=row[COL.CLICK_START+c]; if(v2&&v2.trim()) click.push(normalizeField(v2.trim())); }
+    for (var h=0; h<5; h++) {
+      var v=(row[COL.HOVER_START+h]||'').trim();
+      if (v && v !== '-') hover.push(v);
+    }
+    for (var c=0; c<11; c++) {
+      var v2=(row[COL.CLICK_START+c]||'').trim();
+      if (v2 && v2 !== '-') click.push(v2);
+    }
 
-    if (layerType==='Group') {
+    if (layerType === 'Group') {
       currentGroup = { id:slugify(layerName), type:'group', label:layerName, children:[] };
       LAYERS.push(currentGroup);
-    } else if (layerType==='Places API') {
+    } else if (layerType === 'Places API') {
       var layer = { id:slugify(layerName), type:'places', label:layerName, color:color, searchType:apiType, hover:hover, click:click };
       if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(layer);
       else LAYERS.push(layer);
-    } else if (layerType==='Google Sheet') {
-      var slayer = { id:slugify(layerName), type:'sheet', label:layerName, color:color, sheetTab:sheetTab, hover:hover, click:click };
+    } else if (layerType === 'Google Sheet') {
+      var slayer = { id:slugify(layerName), type:'sheet', label:layerName, color:color, sheetId:sheetId, tabName:tabName, hover:hover, click:click };
       if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(slayer);
       else LAYERS.push(slayer);
     }
@@ -341,11 +333,6 @@ function parseColor(raw) {
   if (hex) return hex[0];
   var names = { 'red':'#e05252','orange':'#e8841a','dkblue':'#2e6fbf','medblue':'#4a90c4','ltblue':'#7ab4d8','green':'#3daa5c','pink':'#d47fa6','brown':'#8B5E3C','purple':'#7B4FBF','blue':'#3d9be9' };
   return names[raw.toLowerCase().replace(/\s+/g,'')] || '#999999';
-}
-
-function normalizeField(f) {
-  var map = { 'name':'name','rating':'rating','review count':'userRatingCount','starrating':'starRating','star count literal':'starRating','photo':'photo','address':'formattedAddress','website':'websiteUri','phone':'nationalPhoneNumber','hours':'regularOpeningHours','cuisine':'primaryTypeDisplayName','category':'primaryTypeDisplayName','dollar range':'priceLevel','description':'editorialSummary' };
-  return map[f.toLowerCase()] || f.toLowerCase().replace(/\s+/g,'');
 }
 
 function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
@@ -361,7 +348,7 @@ function getSaved() {
   return {center:{lat:39.7589,lng:-84.1916},zoom:10};
 }
 
-// ── LAYERS PANEL ──────────────────────────────────────────
+// ── PANEL ─────────────────────────────────────────────────
 function toggleLayersPanel() {
   layersPanelOpen=!layersPanelOpen;
   document.getElementById('layers-toggle-btn').classList.toggle('open',layersPanelOpen);
@@ -406,7 +393,13 @@ function makeLayerRow(layer,isChild) {
   enabled[layer.id]=true; markers[layer.id]=[];
   var row=document.createElement('div'); row.className='layer-row'+(isChild?'':' ungrouped'); row.dataset.id=layer.id;
   var cb=document.createElement('input'); cb.type='checkbox'; cb.className='layer-cb'; cb.checked=true;
-  cb.addEventListener('change',function(){ toggleLayer(layer.id,cb.checked); });
+  cb.addEventListener('change',function(){
+    toggleLayer(layer.id,cb.checked);
+    // If re-enabling a sheet layer that hasn't loaded yet, reload it
+    if (cb.checked && layer.type==='sheet' && !sheetLoaded[layer.id]) {
+      loadSheetLayer(layer);
+    }
+  });
   var dot=document.createElement('div'); dot.className='layer-dot'; dot.style.background=layer.color;
   var lbl=document.createElement('span'); lbl.className='layer-lbl'; lbl.textContent=layer.label;
   var cnt=document.createElement('span'); cnt.className='layer-cnt'; cnt.id='cnt-'+layer.id;
@@ -426,25 +419,35 @@ function toggleAll(){
   });
 }
 
-// ── SEARCH ────────────────────────────────────────────────
+// ── SEARCH THIS AREA ──────────────────────────────────────
 function searchArea() {
   if (!map) return;
   var btn=document.getElementById('search-btn');
   btn.classList.add('searching'); btn.disabled=true;
   setStatus('Searching…');
+
+  // Clear ONLY places layer markers
   getAllLeaf().forEach(function(l){
+    if (l.type !== 'places') return;
     (markers[l.id]||[]).forEach(function(m){m.marker.setMap(null);});
     markers[l.id]=[];
     var el=document.getElementById('cnt-'+l.id); if(el) el.textContent='';
   });
   seen.clear();
+
   var bounds=map.getBounds(), center=map.getCenter();
   var radius=Math.min(calcRadius(bounds),50000);
-  var active=getAllLeaf().filter(function(l){ return enabled[l.id]&&l.type==='places'&&l.searchType; });
-  if(!active.length){ setStatus('No Places layers enabled.'); btn.classList.remove('searching'); btn.disabled=false; return; }
-  Promise.allSettled(active.map(function(l){return searchLayer(l,center,radius);})).then(function(results){
-    var total=0; results.forEach(function(r){if(r.status==='fulfilled') total+=r.value;});
-    setStatus('Found '+total+' places across '+active.length+' active layers.');
+
+  var activePlaces=getAllLeaf().filter(function(l){ return enabled[l.id]&&l.type==='places'&&l.searchType; });
+  var activeSheets=getAllLeaf().filter(function(l){ return enabled[l.id]&&l.type==='sheet'&&l.sheetId&&!sheetLoaded[l.id]; });
+
+  var promises=[];
+  activePlaces.forEach(function(l){ promises.push(searchLayer(l,center,radius)); });
+  activeSheets.forEach(function(l){ promises.push(loadSheetLayer(l)); });
+
+  Promise.allSettled(promises).then(function(results){
+    var total=0; results.forEach(function(r){if(r.status==='fulfilled'&&r.value) total+=r.value;});
+    setStatus('Found '+total+' places across '+(activePlaces.length+activeSheets.length)+' active layers.');
     btn.classList.remove('searching'); btn.disabled=false;
   });
 }
@@ -458,6 +461,7 @@ function calcRadius(bounds){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))/2;
 }
 
+// ── PLACES SEARCH ─────────────────────────────────────────
 function searchLayer(layer,center,radius){
   var fieldMask=buildMask(layer);
   var body={includedTypes:[layer.searchType],maxResultCount:20,locationRestriction:{circle:{center:{latitude:center.lat(),longitude:center.lng()},radius:radius}}};
@@ -475,7 +479,7 @@ function searchLayer(layer,center,radius){
           var pid=p.id||p.name; if(seen.has(pid)) return; seen.add(pid);
           var lat=p.location&&p.location.latitude,lng=p.location&&p.location.longitude;
           if(!lat||!lng) return;
-          markers[layer.id].push({marker:makeMarker(p,layer,lat,lng),place:p}); count++;
+          markers[layer.id].push({marker:makeMarker(p,layer,lat,lng,'places'),place:p}); count++;
         });
         var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=(parseInt(el.textContent||0)+count)||'';
         if(data.nextPageToken) return fetchPage(data.nextPageToken).then(function(more){return count+more;});
@@ -490,68 +494,218 @@ function buildMask(layer){
   var base=['id','displayName','location','primaryTypeDisplayName'];
   var extras=new Set();
   (layer.hover||[]).concat(layer.click||[]).forEach(function(f){
-    if(f==='name') extras.add('displayName');
-    else if(f==='photo') extras.add('photos');
-    else if(f==='rating') extras.add('rating');
-    else if(f==='userRatingCount') extras.add('userRatingCount');
-    else if(f==='formattedAddress') extras.add('formattedAddress');
-    else if(f==='websiteUri') extras.add('websiteUri');
-    else if(f==='nationalPhoneNumber') extras.add('nationalPhoneNumber');
-    else if(f==='regularOpeningHours') extras.add('regularOpeningHours');
-    else if(f==='editorialSummary') extras.add('editorialSummary');
-    else if(f==='priceLevel') extras.add('priceLevel');
-    else if(f==='starRating') extras.add('starRating');
-    else if(f==='primaryTypeDisplayName') extras.add('primaryTypeDisplayName');
+    var norm=normalizeFieldName(f);
+    if(norm==='name'||norm==='displayname') extras.add('displayName');
+    else if(norm==='photo') extras.add('photos');
+    else if(norm==='rating') extras.add('rating');
+    else if(norm==='userRatingCount') extras.add('userRatingCount');
+    else if(norm==='formattedAddress') extras.add('formattedAddress');
+    else if(norm==='websiteUri') extras.add('websiteUri');
+    else if(norm==='nationalPhoneNumber') extras.add('nationalPhoneNumber');
+    else if(norm==='regularOpeningHours') extras.add('regularOpeningHours');
+    else if(norm==='editorialSummary') extras.add('editorialSummary');
+    else if(norm==='priceLevel') extras.add('priceLevel');
+    else if(norm==='primaryTypeDisplayName') extras.add('primaryTypeDisplayName');
   });
   return Array.from(new Set(base.concat(Array.from(extras)))).map(function(f){return 'places.'+f;}).join(',');
 }
 
+function normalizeFieldName(f) {
+  var map = {
+    'name':'name','rating':'rating','review count':'userRatingCount',
+    'photo':'photo','address':'formattedAddress','website':'websiteUri',
+    'phone':'nationalPhoneNumber','hours':'regularOpeningHours',
+    'cuisine':'primaryTypeDisplayName','category':'primaryTypeDisplayName',
+    'dollar range':'priceLevel','description':'editorialSummary'
+  };
+  return map[f.toLowerCase()] || f.toLowerCase().replace(/\s+/g,'');
+}
+
+// ── SHEET LAYER LOADING ───────────────────────────────────
+async function loadSheetLayer(layer) {
+  if (!layer.sheetId || !layer.tabName) return 0;
+  try {
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+layer.sheetId+'/values/'+encodeURIComponent(layer.tabName)+'?key='+apiKey;
+    var resp = await fetch(url);
+    if (!resp.ok) { console.error('Sheet layer error for '+layer.label+': '+resp.status); return 0; }
+    var data = await resp.json();
+    var rows = data.values || [];
+    if (rows.length < 2) return 0;
+
+    // Build header map: column name -> index (case insensitive)
+    var headers = {};
+    rows[0].forEach(function(h, i){ headers[h.trim().toLowerCase()] = i; });
+
+    var latCol = headers['latitude'];
+    var lngCol = headers['longitude'];
+    var photoCol = headers['photo'];
+    if (latCol === undefined || lngCol === undefined) {
+      console.error('Sheet layer '+layer.label+' missing Latitude/Longitude columns');
+      return 0;
+    }
+
+    var count = 0;
+    var photoPromises = [];
+
+    for (var i=1; i<rows.length; i++) {
+      var row = rows[i];
+      var lat = parseFloat(row[latCol]);
+      var lng = parseFloat(row[lngCol]);
+      if (isNaN(lat) || isNaN(lng)) continue;
+
+      // Build record object keyed by header name
+      var record = {};
+      rows[0].forEach(function(h, idx){ record[h.trim().toLowerCase()] = row[idx] || ''; });
+
+      // Resolve photo filename to Drive ID if present
+      var photoFilename = photoCol !== undefined ? (row[photoCol]||'').trim() : '';
+
+      (function(rec, la, ln, pf) {
+        var p = pf ? getImageId(pf) : Promise.resolve(null);
+        photoPromises.push(p.then(function(photoId){
+          rec._photoId = photoId;
+          markers[layer.id].push({marker:makeSheetMarker(rec,layer,la,ln,photoId),record:rec,layer:layer});
+          count++;
+        }));
+      })(record, lat, lng, photoFilename);
+    }
+
+    await Promise.allSettled(photoPromises);
+    sheetLoaded[layer.id] = true;
+    var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=count||'';
+    return count;
+  } catch(e) {
+    console.error('loadSheetLayer error:', e);
+    return 0;
+  }
+}
+
+// ── DRIVE IMAGE LOOKUP ────────────────────────────────────
+async function getImageId(filepath) {
+  // filepath is like "Images/CJ_Untener.jpg" — extract just filename
+  var filename = filepath.split('/').pop();
+  if (imageCache[filename]) return imageCache[filename];
+  try {
+    var url = 'https://www.googleapis.com/drive/v3/files?q=name%3D%22'+encodeURIComponent(filename)+'%22+and+%221roG8susT1hQp8DDXZW28rXVHoyarhCt3%22+in+parents&fields=files(id,name)&key='+apiKey;
+    var resp = await fetch(url);
+    if (!resp.ok) return null;
+    var data = await resp.json();
+    if (data.files && data.files.length > 0) {
+      imageCache[filename] = data.files[0].id;
+      return data.files[0].id;
+    }
+  } catch(e) { console.error('Image lookup error:', e); }
+  return null;
+}
+
+function getDriveImageUrl(fileId) {
+  return 'https://drive.google.com/thumbnail?id='+fileId+'&sz=w300';
+}
+
+// ── FIELD CONCATENATION ───────────────────────────────────
+function resolveField(fieldSpec, record) {
+  // fieldSpec can be "City+State+Zip" or just "Name"
+  if (!fieldSpec) return '';
+  var parts = fieldSpec.split('+');
+  var values = parts.map(function(p){
+    return (record[p.trim().toLowerCase()] || '').trim();
+  }).filter(function(v){ return v; });
+  if (values.length === 0) return '';
+  // Join City+State+Zip as "City, State Zip" style
+  if (parts.length === 3) return values[0]+', '+values[1]+' '+values[2];
+  if (parts.length === 2) return values[0]+', '+values[1];
+  return values[0];
+}
+
 // ── MARKERS ───────────────────────────────────────────────
-function makeMarker(place,layer,lat,lng){
+function makeMarker(place,layer,lat,lng,mtype){
   var m=new google.maps.Marker({
     position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
-  m.addListener('mouseover',function(e){showTooltip(place,layer,e);});
-  m.addListener('mouseout', scheduleHide);
-  m.addListener('click',function(){showPopup(place,layer);});
+  m.addListener('mouseover',function(e){showTooltip(place,layer,e,'places');});
+  m.addListener('mouseout',scheduleHide);
+  m.addListener('click',function(){showPopup(place,layer,'places');});
+  return m;
+}
+
+function makeSheetMarker(record,layer,lat,lng,photoId){
+  var m=new google.maps.Marker({
+    position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
+    icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
+  });
+  m.addListener('mouseover',function(e){showTooltip(record,layer,e,'sheet');});
+  m.addListener('mouseout',scheduleHide);
+  m.addListener('click',function(){showPopup(record,layer,'sheet',lat,lng,photoId);});
   return m;
 }
 
 // ── TOOLTIP ───────────────────────────────────────────────
-function showTooltip(place,layer,event){
+function showTooltip(data,layer,event,dtype){
   var tt=document.getElementById('tooltip');
-  document.getElementById('tt-name').textContent=place.displayName&&place.displayName.text||'Unknown';
+  var name = dtype==='places' ? (data.displayName&&data.displayName.text||'Unknown') : resolveField(layer.hover[0]||'name', data);
+  document.getElementById('tt-name').textContent=name;
+
   var lines=[];
-  if(place.rating){ var s='★'.repeat(Math.round(place.rating))+'☆'.repeat(5-Math.round(place.rating)); var l=s+' '+place.rating.toFixed(1); if(place.userRatingCount) l+=' ('+place.userRatingCount.toLocaleString()+')'; lines.push(l); }
-  if(place.primaryTypeDisplayName&&place.primaryTypeDisplayName.text) lines.push(place.primaryTypeDisplayName.text);
-  if(place.priceLevel) lines.push(priceStr(place.priceLevel));
-  if(place.starRating) lines.push(place.starRating+'-star');
+  if (dtype==='places') {
+    if(data.rating){ var s='★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating)); lines.push(s+' '+data.rating.toFixed(1)+(data.userRatingCount?' ('+data.userRatingCount.toLocaleString()+')':'')); }
+    if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) lines.push(data.primaryTypeDisplayName.text);
+    if(data.priceLevel) lines.push(priceStr(data.priceLevel));
+  } else {
+    // Sheet layer hover fields (skip first — it's the name shown above)
+    for (var i=1; i<layer.hover.length; i++) {
+      var val = resolveField(layer.hover[i], data);
+      if (val) lines.push(val);
+    }
+  }
   document.getElementById('tt-meta').textContent=lines.join(' · ');
-  document.getElementById('tt-link').href=gmapsUrl(place);
+
+  var gmUrl = dtype==='places' ? gmapsUrl(data) : (data.latitude&&data.longitude ? 'https://www.google.com/maps?q='+data.latitude+','+data.longitude : 'https://www.google.com/maps');
+  document.getElementById('tt-link').href=gmUrl;
+
+  clearTimeout(_hideTimer);
   var wrap=document.getElementById('map-wrap'),rect=wrap.getBoundingClientRect();
   var x=(event.domEvent&&event.domEvent.clientX||0)-rect.left;
   var y=(event.domEvent&&event.domEvent.clientY||0)-rect.top;
-  clearTimeout(_hideTimer);
   tt.style.left=(x+8)+'px'; tt.style.top=(y-4)+'px'; tt.style.display='block';
 }
 function scheduleHide(){ _hideTimer = setTimeout(function(){ document.getElementById('tooltip').style.display='none'; }, 300); }
 function hideTooltip(){ clearTimeout(_hideTimer); document.getElementById('tooltip').style.display='none'; }
 
 // ── POPUP ─────────────────────────────────────────────────
-function showPopup(place,layer){
+function showPopup(data,layer,dtype,lat,lng,photoId){
   hideTooltip();
   document.getElementById('popup').classList.add('show');
   var tag=document.getElementById('popup-tag'); tag.textContent=layer.label; tag.style.background=layer.color;
-  document.getElementById('popup-name').textContent=place.displayName&&place.displayName.text||'Unknown';
+
+  // Name
+  var name = dtype==='places' ? (data.displayName&&data.displayName.text||'Unknown') : resolveField('name', data);
+  document.getElementById('popup-name').textContent=name;
+
+  // Rating (places only)
   var rrow=document.getElementById('popup-rating');
-  if(place.rating){ rrow.style.display='flex'; document.getElementById('popup-stars').textContent='★'.repeat(Math.round(place.rating))+'☆'.repeat(5-Math.round(place.rating)); document.getElementById('popup-rnum').textContent=place.rating.toFixed(1); document.getElementById('popup-rcnt').textContent=place.userRatingCount?'('+place.userRatingCount.toLocaleString()+' reviews)':''; }
-  else { rrow.style.display='none'; }
-  var sr=document.getElementById('popup-starrating');
-  if(place.starRating){sr.style.display='block';sr.textContent=place.starRating+'-star '+layer.label.toLowerCase();}else{sr.style.display='none';}
+  if(dtype==='places'&&data.rating){
+    rrow.style.display='flex';
+    document.getElementById('popup-stars').textContent='★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating));
+    document.getElementById('popup-rnum').textContent=data.rating.toFixed(1);
+    document.getElementById('popup-rcnt').textContent=data.userRatingCount?'('+data.userRatingCount.toLocaleString()+' reviews)':'';
+  } else { rrow.style.display='none'; }
+
+  // Photo
   var photo=document.getElementById('popup-photo'),ph=document.getElementById('popup-placeholder');
-  if(place.photos&&place.photos.length){ photo.src='https://places.googleapis.com/v1/'+place.photos[0].name+'/media?maxHeightPx=300&key='+apiKey; photo.style.display='block'; ph.style.display='none'; }
-  else { photo.style.display='none'; ph.style.display='flex'; }
+  if (dtype==='places'&&data.photos&&data.photos.length) {
+    photo.src='https://places.googleapis.com/v1/'+data.photos[0].name+'/media?maxHeightPx=300&key='+apiKey;
+    photo.style.display='block'; ph.style.display='none';
+  } else if (dtype==='sheet'&&photoId) {
+    photo.src=getDriveImageUrl(photoId);
+    photo.style.display='block'; ph.style.display='none';
+    photo.onerror=function(){ photo.style.display='none'; ph.style.display='flex'; };
+  } else {
+    photo.style.display='none'; ph.style.display='flex';
+    ph.textContent = dtype==='sheet' ? '👤' : '📍';
+  }
+
+  // Fields
   var fields=document.getElementById('popup-fields'); fields.innerHTML='';
   function addField(icon,text,link){
     if(!text) return;
@@ -562,14 +716,32 @@ function showPopup(place,layer){
     else{tx.textContent=text;}
     row.appendChild(ic); row.appendChild(tx); fields.appendChild(row);
   }
-  if(place.primaryTypeDisplayName&&place.primaryTypeDisplayName.text) addField('🏷',place.primaryTypeDisplayName.text);
-  if(place.editorialSummary&&place.editorialSummary.text) addField('📝',place.editorialSummary.text);
-  if(place.priceLevel) addField('💰',priceStr(place.priceLevel));
-  if(place.formattedAddress) addField('📍',place.formattedAddress);
-  if(place.regularOpeningHours&&place.regularOpeningHours.weekdayDescriptions){ var d=new Date().getDay(),idx=d===0?6:d-1; var h=place.regularOpeningHours.weekdayDescriptions[idx]; if(h) addField('🕐',h); }
-  if(place.websiteUri) addField('🌐',place.websiteUri,true);
-  if(place.nationalPhoneNumber) addField('📞',place.nationalPhoneNumber);
-  document.getElementById('popup-gmaps').href=gmapsUrl(place);
+
+  if (dtype==='places') {
+    if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) addField('🏷',data.primaryTypeDisplayName.text);
+    if(data.editorialSummary&&data.editorialSummary.text) addField('📝',data.editorialSummary.text);
+    if(data.priceLevel) addField('💰',priceStr(data.priceLevel));
+    if(data.formattedAddress) addField('📍',data.formattedAddress);
+    if(data.regularOpeningHours&&data.regularOpeningHours.weekdayDescriptions){ var d=new Date().getDay(),idx=d===0?6:d-1; var h=data.regularOpeningHours.weekdayDescriptions[idx]; if(h) addField('🕐',h); }
+    if(data.websiteUri) addField('🌐',data.websiteUri,true);
+    if(data.nationalPhoneNumber) addField('📞',data.nationalPhoneNumber);
+  } else {
+    // Sheet layer — use click fields from config, skip 'photo' (handled above) and name (shown in header)
+    var fieldIcons = {'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧'};
+    layer.click.forEach(function(fieldSpec){
+      var key = fieldSpec.toLowerCase();
+      if (key==='photo'||key==='name') return;
+      var val = resolveField(fieldSpec, data);
+      if (!val) return;
+      var isLink = key==='website'||key==='email';
+      var icon = fieldIcons[key] || '•';
+      addField(icon, val, isLink);
+    });
+  }
+
+  // Google Maps link
+  var gmUrl = dtype==='places' ? gmapsUrl(data) : 'https://www.google.com/maps?q='+lat+','+lng;
+  document.getElementById('popup-gmaps').href=gmUrl;
 }
 function closePopup(){ document.getElementById('popup').classList.remove('show'); }
 
