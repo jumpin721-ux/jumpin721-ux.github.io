@@ -239,7 +239,8 @@ const COL = { LAYER:0, TYPE:1, GROUP:2, SEARCH_FOR:3, API_TYPE:4, COLOR:5, ICON:
 let map, apiKey='', markers={}, enabled={}, seen=new Set();
 let routeRenderer, gpxLine, routeOpen=false, layersPanelOpen=false;
 let LAYERS=[];
-
+var _hideTimer = null;
+  
 // ── BOOT ──────────────────────────────────────────────────
 document.getElementById('load-btn').addEventListener('click', function() {
   apiKey = document.getElementById('api-key-input').value.trim();
@@ -273,6 +274,8 @@ window.initMap = async function() {
   });
   map.addListener('idle', savePos);
   map.addListener('click', closePopup);
+  document.getElementById('tooltip').addEventListener('mouseenter', function(){ clearTimeout(_hideTimer); });
+  document.getElementById('tooltip').addEventListener('mouseleave', scheduleHide);
   routeRenderer = new google.maps.DirectionsRenderer({
     map: map, suppressMarkers: false,
     polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
@@ -282,7 +285,8 @@ window.initMap = async function() {
 
   // Load config from sheet
   document.getElementById('config-loading').classList.add('show');
-  try { await loadLayerConfig();console.log('LAYERS:', JSON.stringify(LAYERS)); }
+  try { await loadLayerConfig(); }
+  /debug to LOG LAYER structure try { await loadLayerConfig();console.log('LAYERS:', JSON.stringify(LAYERS)); }
   catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
   document.getElementById('config-loading').classList.remove('show');
 
@@ -299,8 +303,8 @@ async function loadLayerConfig() {
   if (!resp.ok) throw new Error('Could not read config sheet ('+resp.status+')');
   var data = await resp.json();
   var rows = data.values || [];
-  console.log('Total rows:', rows.length);
-  rows.forEach(function(r, i){ console.log('Row '+i+':', JSON.stringify(r)); });
+  / console.log('Total rows:', rows.length);
+  / rows.forEach(function(r, i){ console.log('Row '+i+':', JSON.stringify(r)); });
   LAYERS = [];
   var currentGroup = null;
 
@@ -468,9 +472,9 @@ function searchLayer(layer,center,radius){
       body:JSON.stringify(req)
     }).then(function(resp){
       if(!resp.ok) return 0;
-      resp.clone().json().then(function(d){ 
-      if(layer.id==='hotels') console.log('Hotels API response:', JSON.stringify(d)); 
-      });
+      /  resp.clone().json().then(function(d){ 
+      /  if(layer.id==='hotels') console.log('Hotels API response:', JSON.stringify(d)); 
+      /  });
       return resp.json().then(function(data){
         var places=data.places||[],count=0;
         places.forEach(function(p){
@@ -515,7 +519,7 @@ function makeMarker(place,layer,lat,lng){
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
   m.addListener('mouseover',function(e){showTooltip(place,layer,e);});
-  m.addListener('mouseout', function(){ setTimeout(hideTooltip, 300); });
+ m.addListener('mouseout', scheduleHide);
   m.addListener('click',function(){showPopup(place,layer);});
   return m;
 }
@@ -534,14 +538,12 @@ function showTooltip(place,layer,event){
   var wrap=document.getElementById('map-wrap'),rect=wrap.getBoundingClientRect();
   var x=(event.domEvent&&event.domEvent.clientX||0)-rect.left;
   var y=(event.domEvent&&event.domEvent.clientY||0)-rect.top;
+  clearTimeout(_hideTimer);
   tt.style.left=(x+8)+'px'; tt.style.top=(y-4)+'px'; tt.style.display='block';
 }
-function hideTooltip(){
-  var tt = document.getElementById('tooltip');
-  tt.addEventListener('mouseenter', function(){ clearTimeout(tt._hideTimer); }, {once:true});
-  tt._hideTimer = setTimeout(function(){ tt.style.display='none'; }, 300);
-}
-
+function scheduleHide(){ _hideTimer = setTimeout(function(){ document.getElementById('tooltip').style.display='none'; }, 300); }
+function hideTooltip(){ clearTimeout(_hideTimer); document.getElementById('tooltip').style.display='none'; }
+  
 // ── POPUP ─────────────────────────────────────────────────
 function showPopup(place,layer){
   hideTooltip();
