@@ -510,7 +510,7 @@ function makeMarker(place,layer,lat,lng){
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
   m.addListener('mouseover',function(e){showTooltip(place,layer,e);});
-  m.addListener('mouseout',hideTooltip);
+  m.addListener('mouseout', function(){ setTimeout(hideTooltip, 300); });
   m.addListener('click',function(){showPopup(place,layer);});
   return m;
 }
@@ -531,7 +531,11 @@ function showTooltip(place,layer,event){
   var y=(event.domEvent&&event.domEvent.clientY||0)-rect.top;
   tt.style.left=(x+8)+'px'; tt.style.top=(y-4)+'px'; tt.style.display='block';
 }
-function hideTooltip(){ document.getElementById('tooltip').style.display='none'; }
+function hideTooltip(){
+  var tt = document.getElementById('tooltip');
+  tt.addEventListener('mouseenter', function(){ clearTimeout(tt._hideTimer); }, {once:true});
+  tt._hideTimer = setTimeout(function(){ tt.style.display='none'; }, 300);
+}
 
 // ── POPUP ─────────────────────────────────────────────────
 function showPopup(place,layer){
