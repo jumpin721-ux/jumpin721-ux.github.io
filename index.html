@@ -178,7 +178,7 @@
 // ── LAYER CONFIG ──────────────────────────────────────────────
 const LAYERS = [
   { id:'lodging', type:'group', label:'Lodging', children:[
-    { id:'hotels', type:'places', label:'Hotels', color:'#e05252', searchType:'lodging',
+    { id:'hotels', type:'places', label:'Hotels', color:'#e05252', searchType:'hotel',
       hover:['name','rating','userRatingCount','starRating'],
       click:['photo','name','rating','userRatingCount','starRating','formattedAddress','websiteUri','nationalPhoneNumber'] },
     { id:'campgrounds', type:'places', label:'Campgrounds', color:'#e8841a', searchType:'campground',
@@ -558,7 +558,10 @@ function darkStyles(){return[
   {featureType:'poi',elementType:'geometry',stylers:[{color:'#1e2a3a'}]},
   {featureType:'poi.park',elementType:'geometry',stylers:[{color:'#1a2e1a'}]},
   {featureType:'transit',elementType:'geometry',stylers:[{color:'#2d3548'}]},
-  {featureType:'administrative',elementType:'geometry.stroke',stylers:[{color:'#3d4a6b'}]}
+  {featureType:'administrative',elementType:'geometry.stroke',stylers:[{color:'#3d4a6b'}]},
+  {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+  {featureType:'poi.business',stylers:[{visibility:'off'}]},
+  {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]}
 ];}
 </script>
 </body>
