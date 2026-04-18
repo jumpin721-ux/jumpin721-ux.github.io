@@ -240,7 +240,7 @@ let map, apiKey='', markers={}, enabled={}, seen=new Set();
 let routeRenderer, gpxLine, routeOpen=false, layersPanelOpen=false;
 let LAYERS=[];
 var _hideTimer = null;
-  
+
 // ── BOOT ──────────────────────────────────────────────────
 document.getElementById('load-btn').addEventListener('click', function() {
   apiKey = document.getElementById('api-key-input').value.trim();
@@ -285,8 +285,6 @@ window.initMap = async function() {
 
   // Load config from sheet
   document.getElementById('config-loading').classList.add('show');
-  // debug to LOG LAYER structure 
-  // try { await loadLayerConfig();console.log('LAYERS:', JSON.stringify(LAYERS)); }
   try { await loadLayerConfig(); }
   catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
   document.getElementById('config-loading').classList.remove('show');
@@ -304,8 +302,6 @@ async function loadLayerConfig() {
   if (!resp.ok) throw new Error('Could not read config sheet ('+resp.status+')');
   var data = await resp.json();
   var rows = data.values || [];
-  / console.log('Total rows:', rows.length);
-  / rows.forEach(function(r, i){ console.log('Row '+i+':', JSON.stringify(r)); });
   LAYERS = [];
   var currentGroup = null;
 
@@ -473,9 +469,6 @@ function searchLayer(layer,center,radius){
       body:JSON.stringify(req)
     }).then(function(resp){
       if(!resp.ok) return 0;
-      /  resp.clone().json().then(function(d){ 
-      /  if(layer.id==='hotels') console.log('Hotels API response:', JSON.stringify(d)); 
-      /  });
       return resp.json().then(function(data){
         var places=data.places||[],count=0;
         places.forEach(function(p){
@@ -520,7 +513,7 @@ function makeMarker(place,layer,lat,lng){
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
   m.addListener('mouseover',function(e){showTooltip(place,layer,e);});
- m.addListener('mouseout', scheduleHide);
+  m.addListener('mouseout', scheduleHide);
   m.addListener('click',function(){showPopup(place,layer);});
   return m;
 }
@@ -544,7 +537,7 @@ function showTooltip(place,layer,event){
 }
 function scheduleHide(){ _hideTimer = setTimeout(function(){ document.getElementById('tooltip').style.display='none'; }, 300); }
 function hideTooltip(){ clearTimeout(_hideTimer); document.getElementById('tooltip').style.display='none'; }
-  
+
 // ── POPUP ─────────────────────────────────────────────────
 function showPopup(place,layer){
   hideTooltip();
