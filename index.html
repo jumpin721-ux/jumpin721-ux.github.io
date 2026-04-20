@@ -87,7 +87,7 @@
     #popup.show { display: flex; }
     #popup-close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.12); border: none; color: #333; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; z-index: 10; }
     #popup-close:hover { background: rgba(0,0,0,0.2); }
-    #popup-photo { width: 100%; height: 160px; object-fit: cover; display: none; }
+    #popup-photo { width: 100%; height: auto; max-height: 280px; object-fit: contain; display: none; }
     #popup-placeholder { width: 100%; height: 80px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 28px; }
     #popup-body { padding: 14px; overflow-y: auto; flex: 1; }
     #popup-body::-webkit-scrollbar { width: 4px; }
