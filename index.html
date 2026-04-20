@@ -677,7 +677,11 @@ async function renderClickGPX(gpxFilename, color) {
 
 function parseGPX(text) {
   var xml = new DOMParser().parseFromString(text, 'text/xml');
-  return Array.from(xml.querySelectorAll('trkpt,rtept,wpt'))
+  // Prefer track points, then route points, then waypoints as last resort
+  var pts = Array.from(xml.querySelectorAll('trkpt'));
+  if (!pts.length) pts = Array.from(xml.querySelectorAll('rtept'));
+  if (!pts.length) pts = Array.from(xml.querySelectorAll('wpt'));
+  return pts
     .map(function(p){ return {lat:parseFloat(p.getAttribute('lat')),lng:parseFloat(p.getAttribute('lon'))}; })
     .filter(function(p){ return !isNaN(p.lat)&&!isNaN(p.lng); });
 }
