@@ -615,7 +615,7 @@ async function getFileId(filepath, folderId, cache) {
   if (cache[filename]) return cache[filename];
   try {
     var q = encodeURIComponent('name="'+filename+'" and "'+folderId+'" in parents');
-    var url = 'https://drive.google.com/uc?export=download&id='+fileId;
+    var url = 'https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name)&key='+apiKey;
     var resp = await fetch(url);
     if (!resp.ok) return null;
     var data = await resp.json();
@@ -635,7 +635,7 @@ async function fetchAndRenderGPX(gpxFilename, color, layerId) {
     var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
     if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
 
-    // Fetch GPX content via Drive API
+    // Fetch GPX content via browser-safe Drive URL
     var url = 'https://drive.google.com/uc?export=download&id='+fileId;
     var resp = await fetch(url);
     if (!resp.ok) { console.error('GPX fetch error:', resp.status); return; }
@@ -665,7 +665,7 @@ async function renderClickGPX(gpxFilename, color) {
   try {
     var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
     if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
-    var url = 'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media&key='+apiKey;
+    var url = 'https://drive.google.com/uc?export=download&id='+fileId;
     var resp = await fetch(url);
     if (!resp.ok) return;
     var gpxText = await resp.text();
