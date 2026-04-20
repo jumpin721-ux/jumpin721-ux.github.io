@@ -632,13 +632,13 @@ function getDriveImageUrl(fileId) { return 'https://drive.google.com/thumbnail?i
 // ── GPX FETCH AND RENDER ──────────────────────────────────
 async function fetchAndRenderGPX(gpxFilename, color, layerId) {
   try {
-    var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
-    if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
+    var filename = gpxFilename.split('/').pop();
+    if (!filename) { console.warn('No GPX filename:', gpxFilename); return; }
 
-    // Fetch GPX content via browser-safe Drive URL
-    var url = 'https://drive.google.com/uc?export=download&id='+fileId;
+    // Fetch GPX from GitHub Pages (same origin, no CORS issues)
+    var url = 'https://jumpin721-ux.github.io/routes/'+encodeURIComponent(filename);
     var resp = await fetch(url);
-    if (!resp.ok) { console.error('GPX fetch error:', resp.status); return; }
+    if (!resp.ok) { console.error('GPX fetch error:', resp.status, filename); return; }
     var gpxText = await resp.text();
 
     var pts = parseGPX(gpxText);
@@ -663,9 +663,9 @@ async function renderClickGPX(gpxFilename, color) {
   // Clear any existing click polyline
   if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
   try {
-    var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
-    if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
-    var url = 'https://drive.google.com/uc?export=download&id='+fileId;
+    var filename = gpxFilename.split('/').pop();
+    if (!filename) return;
+    var url = 'https://jumpin721-ux.github.io/routes/'+encodeURIComponent(filename);
     var resp = await fetch(url);
     if (!resp.ok) return;
     var gpxText = await resp.text();
