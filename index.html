@@ -76,7 +76,7 @@
     #search-btn.searching .spin { display: inline-block; }
 
     /* TOOLTIP */
-    #tooltip { position: absolute; background: #1a1f2e; border: 1px solid #2d3548; border-radius: 8px; padding: 8px 12px; pointer-events: all; z-index: 500; max-width: 240px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: none; }
+    #tooltip { position: absolute; background: #1a1f2e; border: 1px solid #2d3548; border-radius: 8px; padding: 8px 12px; pointer-events: all; z-index: 500; max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: none; }
     .tt-name { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 600; color: #e2e8f0; margin-bottom: 2px; }
     .tt-meta { font-size: 11px; color: #8896aa; line-height: 1.6; }
     .tt-link { font-size: 11px; color: #3d9be9; text-decoration: none; display: block; margin-top: 4px; }
@@ -141,7 +141,7 @@
       <p>Paste your Google Maps API Key in the header and click <strong>Load Map</strong> to begin.</p>
     </div>
     <div id="map"></div>
-    <div id="config-loading"><div class="big-spin"></div><span>Loading layer config…</span></div>
+    <div id="config-loading"><div class="big-spin"></div><span id="loading-msg">Loading layer config…</span></div>
 
     <div id="layers-widget">
       <button id="layers-toggle-btn" onclick="toggleLayersPanel()">
@@ -206,6 +206,7 @@
 const LAYERS_SHEET_ID = '15rXYK5K1PCI-iN50fPHjCX8RkYB0Ka90phN55ikGZEU';
 const LAYERS_TAB = 'Sheet1';
 const IMAGES_FOLDER_ID = '1roG8susT1hQp8DDXZW28rXVHoyarhCt3';
+const ROUTES_FOLDER_ID = '1a9YjGtJgk2NLwE-Hzy367cNViuZ5ciL7';
 
 const COL = {
   LAYER:0, TYPE:1, GROUP:2, SEARCH_FOR:3, API_TYPE:4,
@@ -217,9 +218,12 @@ const COL = {
 let map, apiKey='', markers={}, enabled={}, seen=new Set();
 let routeRenderer, gpxLine, routeOpen=false, layersPanelOpen=false;
 let LAYERS=[];
-let sheetLoaded={};      // tracks which sheet layers have been loaded
-let imageCache={};       // filename -> Drive file ID cache
-var _hideTimer = null;
+let sheetLoaded={};
+let imageCache={};   // filename -> Drive file ID
+let routeCache={};   // filename -> Drive file ID
+let autoPolylines={}; // layerId -> array of google.maps.Polyline (for GPX-Auto)
+let clickPolyline=null; // single polyline for GPX click-to-render
+var _hideTimer=null;
 
 // ── BOOT ──────────────────────────────────────────────────
 document.getElementById('load-btn').addEventListener('click', function() {
@@ -238,7 +242,7 @@ document.getElementById('toggle-all').addEventListener('click', toggleAll);
 document.getElementById('route-toggle').addEventListener('click', toggleRoute);
 document.getElementById('r-go').addEventListener('click', showRoute);
 document.getElementById('r-clear').addEventListener('click', clearRoute);
-document.getElementById('gpx-file').addEventListener('change', loadGPX);
+document.getElementById('gpx-file').addEventListener('change', loadGPXFile);
 document.getElementById('popup-close').addEventListener('click', closePopup);
 
 // ── INIT MAP ──────────────────────────────────────────────
@@ -261,19 +265,28 @@ window.initMap = async function() {
     map: map, suppressMarkers: false,
     polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
   });
+
   document.getElementById('load-btn').disabled = true;
   document.getElementById('load-btn').textContent = 'Loaded ✓';
 
-  document.getElementById('config-loading').classList.add('show');
+  showLoadingMsg('Loading layer config…');
   try { await loadLayerConfig(); }
   catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
-  document.getElementById('config-loading').classList.remove('show');
+  hideLoading();
 
   buildPanel();
   document.getElementById('search-btn').disabled = false;
   document.getElementById('search-btn').classList.add('visible');
-  setStatus('Map loaded. Click Search This Area to find places.');
+  setStatus('Map loaded. Click Search This Area to begin.');
 };
+
+function showLoadingMsg(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('config-loading').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('config-loading').classList.remove('show');
+}
 
 // ── LOAD LAYER CONFIG ─────────────────────────────────────
 async function loadLayerConfig() {
@@ -288,12 +301,9 @@ async function loadLayerConfig() {
   for (var i=1; i<rows.length; i++) {
     var row = rows[i];
     if (!row || !row[COL.LAYER]) continue;
-
     var layerName = (row[COL.LAYER]||'').trim();
     var layerType = (row[COL.TYPE]||'').trim();
-
-    // Skip rows with no Type — used to disable layers
-    if (!layerType) continue;
+    if (!layerType) continue; // blank type = disabled
 
     var groupName = (row[COL.GROUP]||'').trim().replace(/^-$/,'');
     var apiType   = (row[COL.API_TYPE]||'').trim();
@@ -303,23 +313,17 @@ async function loadLayerConfig() {
     var color     = parseColor(colorRaw);
 
     var hover=[], click=[];
-    for (var h=0; h<5; h++) {
-      var v=(row[COL.HOVER_START+h]||'').trim();
-      if (v && v !== '-') hover.push(v);
-    }
-    for (var c=0; c<11; c++) {
-      var v2=(row[COL.CLICK_START+c]||'').trim();
-      if (v2 && v2 !== '-') click.push(v2);
-    }
+    for (var h=0; h<5; h++) { var v=(row[COL.HOVER_START+h]||'').trim(); if(v&&v!=='-') hover.push(v); }
+    for (var c=0; c<11; c++) { var v2=(row[COL.CLICK_START+c]||'').trim(); if(v2&&v2!=='-') click.push(v2); }
 
-    if (layerType === 'Group') {
+    if (layerType==='Group') {
       currentGroup = { id:slugify(layerName), type:'group', label:layerName, children:[] };
       LAYERS.push(currentGroup);
-    } else if (layerType === 'Places API') {
+    } else if (layerType==='Places API') {
       var layer = { id:slugify(layerName), type:'places', label:layerName, color:color, searchType:apiType, hover:hover, click:click };
       if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(layer);
       else LAYERS.push(layer);
-    } else if (layerType === 'Google Sheet') {
+    } else if (layerType==='Google Sheet') {
       var slayer = { id:slugify(layerName), type:'sheet', label:layerName, color:color, sheetId:sheetId, tabName:tabName, hover:hover, click:click };
       if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(slayer);
       else LAYERS.push(slayer);
@@ -334,7 +338,6 @@ function parseColor(raw) {
   var names = { 'red':'#e05252','orange':'#e8841a','dkblue':'#2e6fbf','medblue':'#4a90c4','ltblue':'#7ab4d8','green':'#3daa5c','pink':'#d47fa6','brown':'#8B5E3C','purple':'#7B4FBF','blue':'#3d9be9' };
   return names[raw.toLowerCase().replace(/\s+/g,'')] || '#999999';
 }
-
 function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
 
 // ── POSITION ──────────────────────────────────────────────
@@ -395,9 +398,12 @@ function makeLayerRow(layer,isChild) {
   var cb=document.createElement('input'); cb.type='checkbox'; cb.className='layer-cb'; cb.checked=true;
   cb.addEventListener('change',function(){
     toggleLayer(layer.id,cb.checked);
-    // If re-enabling a sheet layer that hasn't loaded yet, reload it
     if (cb.checked && layer.type==='sheet' && !sheetLoaded[layer.id]) {
       loadSheetLayer(layer);
+    }
+    // Toggle auto polylines visibility
+    if (autoPolylines[layer.id]) {
+      autoPolylines[layer.id].forEach(function(p){ p.setVisible(cb.checked); });
     }
   });
   var dot=document.createElement('div'); dot.className='layer-dot'; dot.style.background=layer.color;
@@ -416,6 +422,7 @@ function toggleAll(){
   getAllLeaf().forEach(function(l){
     enabled[l.id]=!allOn; setVisible(l.id,!allOn);
     var cb=document.querySelector('[data-id="'+l.id+'"] .layer-cb'); if(cb) cb.checked=!allOn;
+    if(autoPolylines[l.id]) autoPolylines[l.id].forEach(function(p){p.setVisible(!allOn);});
   });
 }
 
@@ -426,9 +433,9 @@ function searchArea() {
   btn.classList.add('searching'); btn.disabled=true;
   setStatus('Searching…');
 
-  // Clear ONLY places layer markers
+  // Clear only Places layer markers
   getAllLeaf().forEach(function(l){
-    if (l.type !== 'places') return;
+    if (l.type!=='places') return;
     (markers[l.id]||[]).forEach(function(m){m.marker.setMap(null);});
     markers[l.id]=[];
     var el=document.getElementById('cnt-'+l.id); if(el) el.textContent='';
@@ -445,9 +452,15 @@ function searchArea() {
   activePlaces.forEach(function(l){ promises.push(searchLayer(l,center,radius)); });
   activeSheets.forEach(function(l){ promises.push(loadSheetLayer(l)); });
 
+  if (!promises.length) {
+    setStatus('No active layers to search.');
+    btn.classList.remove('searching'); btn.disabled=false;
+    return;
+  }
+
   Promise.allSettled(promises).then(function(results){
     var total=0; results.forEach(function(r){if(r.status==='fulfilled'&&r.value) total+=r.value;});
-    setStatus('Found '+total+' places across '+(activePlaces.length+activeSheets.length)+' active layers.');
+    setStatus('Found '+total+' results across '+(activePlaces.length+activeSheets.length)+' active layers.');
     btn.classList.remove('searching'); btn.disabled=false;
   });
 }
@@ -479,7 +492,7 @@ function searchLayer(layer,center,radius){
           var pid=p.id||p.name; if(seen.has(pid)) return; seen.add(pid);
           var lat=p.location&&p.location.latitude,lng=p.location&&p.location.longitude;
           if(!lat||!lng) return;
-          markers[layer.id].push({marker:makeMarker(p,layer,lat,lng,'places'),place:p}); count++;
+          markers[layer.id].push({marker:makeMarker(p,layer,lat,lng),place:p}); count++;
         });
         var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=(parseInt(el.textContent||0)+count)||'';
         if(data.nextPageToken) return fetchPage(data.nextPageToken).then(function(more){return count+more;});
@@ -494,31 +507,20 @@ function buildMask(layer){
   var base=['id','displayName','location','primaryTypeDisplayName'];
   var extras=new Set();
   (layer.hover||[]).concat(layer.click||[]).forEach(function(f){
-    var norm=normalizeFieldName(f);
-    if(norm==='name'||norm==='displayname') extras.add('displayName');
-    else if(norm==='photo') extras.add('photos');
-    else if(norm==='rating') extras.add('rating');
-    else if(norm==='userRatingCount') extras.add('userRatingCount');
-    else if(norm==='formattedAddress') extras.add('formattedAddress');
-    else if(norm==='websiteUri') extras.add('websiteUri');
-    else if(norm==='nationalPhoneNumber') extras.add('nationalPhoneNumber');
-    else if(norm==='regularOpeningHours') extras.add('regularOpeningHours');
-    else if(norm==='editorialSummary') extras.add('editorialSummary');
-    else if(norm==='priceLevel') extras.add('priceLevel');
-    else if(norm==='primaryTypeDisplayName') extras.add('primaryTypeDisplayName');
+    var n=f.toLowerCase().replace(/\s+/g,'');
+    if(n==='name') extras.add('displayName');
+    else if(n==='photo') extras.add('photos');
+    else if(n==='rating') extras.add('rating');
+    else if(n==='userratingcount'||n==='reviewcount') extras.add('userRatingCount');
+    else if(n==='formattedaddress'||n==='address') extras.add('formattedAddress');
+    else if(n==='websiteuri'||n==='website') extras.add('websiteUri');
+    else if(n==='nationalPhonenumber'||n==='phone') extras.add('nationalPhoneNumber');
+    else if(n==='regularopeninghours'||n==='hours') extras.add('regularOpeningHours');
+    else if(n==='editorialsummary'||n==='description') extras.add('editorialSummary');
+    else if(n==='pricelevel'||n==='dollarrange') extras.add('priceLevel');
+    else if(n==='primarytypedisplayname'||n==='cuisine'||n==='category') extras.add('primaryTypeDisplayName');
   });
   return Array.from(new Set(base.concat(Array.from(extras)))).map(function(f){return 'places.'+f;}).join(',');
-}
-
-function normalizeFieldName(f) {
-  var map = {
-    'name':'name','rating':'rating','review count':'userRatingCount',
-    'photo':'photo','address':'formattedAddress','website':'websiteUri',
-    'phone':'nationalPhoneNumber','hours':'regularOpeningHours',
-    'cuisine':'primaryTypeDisplayName','category':'primaryTypeDisplayName',
-    'dollar range':'priceLevel','description':'editorialSummary'
-  };
-  return map[f.toLowerCase()] || f.toLowerCase().replace(/\s+/g,'');
 }
 
 // ── SHEET LAYER LOADING ───────────────────────────────────
@@ -527,50 +529,73 @@ async function loadSheetLayer(layer) {
   try {
     var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+layer.sheetId+'/values/'+encodeURIComponent(layer.tabName)+'?key='+apiKey;
     var resp = await fetch(url);
-    if (!resp.ok) { console.error('Sheet layer error for '+layer.label+': '+resp.status); return 0; }
+    if (!resp.ok) { console.error('Sheet error '+layer.label+': '+resp.status); return 0; }
     var data = await resp.json();
     var rows = data.values || [];
     if (rows.length < 2) return 0;
 
-    // Build header map: column name -> index (case insensitive)
+    // Build header map (lowercase -> index)
     var headers = {};
-    rows[0].forEach(function(h, i){ headers[h.trim().toLowerCase()] = i; });
+    rows[0].forEach(function(h,i){ headers[h.trim().toLowerCase()] = i; });
 
     var latCol = headers['latitude'];
     var lngCol = headers['longitude'];
+    if (latCol===undefined||lngCol===undefined) { console.error('Missing lat/lng columns in '+layer.label); return 0; }
+
     var photoCol = headers['photo'];
-    if (latCol === undefined || lngCol === undefined) {
-      console.error('Sheet layer '+layer.label+' missing Latitude/Longitude columns');
-      return 0;
-    }
+
+    // Detect GPX behavior from headers
+    var gpxAutoCol = headers['gpx-auto'];   // auto-render on load
+    var gpxClickCol = headers['gpx'];        // render on click
+    var gpxColorCol = headers['gpx color'] !== undefined ? headers['gpx color'] :
+                      headers['route-color'] !== undefined ? headers['route-color'] : undefined;
 
     var count = 0;
-    var photoPromises = [];
+    var promises = [];
+
+    // Initialize auto polylines array for this layer
+    if (gpxAutoCol !== undefined) autoPolylines[layer.id] = [];
 
     for (var i=1; i<rows.length; i++) {
       var row = rows[i];
       var lat = parseFloat(row[latCol]);
       var lng = parseFloat(row[lngCol]);
-      if (isNaN(lat) || isNaN(lng)) continue;
+      if (isNaN(lat)||isNaN(lng)) continue;
 
-      // Build record object keyed by header name
       var record = {};
-      rows[0].forEach(function(h, idx){ record[h.trim().toLowerCase()] = row[idx] || ''; });
+      rows[0].forEach(function(h,idx){ record[h.trim().toLowerCase()] = (row[idx]||'').trim(); });
 
-      // Resolve photo filename to Drive ID if present
-      var photoFilename = photoCol !== undefined ? (row[photoCol]||'').trim() : '';
+      var photoFilename = (photoCol!==undefined) ? (row[photoCol]||'').trim() : '';
+      var gpxFilename = '';
+      var gpxColor = '#e8a020';
 
-      (function(rec, la, ln, pf) {
-        var p = pf ? getImageId(pf) : Promise.resolve(null);
-        photoPromises.push(p.then(function(photoId){
+      if (gpxAutoCol!==undefined) gpxFilename = (row[gpxAutoCol]||'').trim();
+      else if (gpxClickCol!==undefined) gpxFilename = (row[gpxClickCol]||'').trim();
+
+      if (gpxColorCol!==undefined) gpxColor = parseColor((row[gpxColorCol]||'').trim()) || '#e8a020';
+
+      (function(rec, la, ln, pf, gf, gc, hasAutoGpx, hasClickGpx) {
+        var p = pf ? getFileId(pf, IMAGES_FOLDER_ID, imageCache) : Promise.resolve(null);
+        promises.push(p.then(function(photoId){
           rec._photoId = photoId;
-          markers[layer.id].push({marker:makeSheetMarker(rec,layer,la,ln,photoId),record:rec,layer:layer});
+          rec._gpxFile = gf;
+          rec._gpxColor = gc;
+          rec._hasClickGpx = hasClickGpx;
+
+          var marker = makeSheetMarker(rec, layer, la, ln, photoId, hasClickGpx, gc);
+          markers[layer.id].push({marker:marker, record:rec, layer:layer});
           count++;
+
+          // GPX-Auto: fetch and render immediately
+          if (hasAutoGpx && gf) {
+            return fetchAndRenderGPX(gf, gc, layer.id);
+          }
         }));
-      })(record, lat, lng, photoFilename);
+      })(record, lat, lng, photoFilename, gpxFilename, gpxColor,
+         gpxAutoCol!==undefined, gpxClickCol!==undefined);
     }
 
-    await Promise.allSettled(photoPromises);
+    await Promise.allSettled(promises);
     sheetLoaded[layer.id] = true;
     var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=count||'';
     return count;
@@ -580,87 +605,150 @@ async function loadSheetLayer(layer) {
   }
 }
 
-// ── DRIVE IMAGE LOOKUP ────────────────────────────────────
-async function getImageId(filepath) {
-  // filepath is like "Images/CJ_Untener.jpg" — extract just filename
+// ── DRIVE FILE LOOKUP ─────────────────────────────────────
+async function getFileId(filepath, folderId, cache) {
   var filename = filepath.split('/').pop();
-  if (imageCache[filename]) return imageCache[filename];
+  if (!filename) return null;
+  if (cache[filename]) return cache[filename];
   try {
-    var url = 'https://www.googleapis.com/drive/v3/files?q=name%3D%22'+encodeURIComponent(filename)+'%22+and+%221roG8susT1hQp8DDXZW28rXVHoyarhCt3%22+in+parents&fields=files(id,name)&key='+apiKey;
+    var q = encodeURIComponent('name="'+filename+'" and "'+folderId+'" in parents');
+    var url = 'https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name)&key='+apiKey;
     var resp = await fetch(url);
     if (!resp.ok) return null;
     var data = await resp.json();
-    if (data.files && data.files.length > 0) {
-      imageCache[filename] = data.files[0].id;
+    if (data.files&&data.files.length>0) {
+      cache[filename] = data.files[0].id;
       return data.files[0].id;
     }
-  } catch(e) { console.error('Image lookup error:', e); }
+  } catch(e) { console.error('File lookup error:', e); }
   return null;
 }
 
-function getDriveImageUrl(fileId) {
-  return 'https://drive.google.com/thumbnail?id='+fileId+'&sz=w300';
+function getDriveImageUrl(fileId) { return 'https://drive.google.com/thumbnail?id='+fileId+'&sz=w300'; }
+
+// ── GPX FETCH AND RENDER ──────────────────────────────────
+async function fetchAndRenderGPX(gpxFilename, color, layerId) {
+  try {
+    var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
+    if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
+
+    // Fetch GPX content via Drive API
+    var url = 'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media&key='+apiKey;
+    var resp = await fetch(url);
+    if (!resp.ok) { console.error('GPX fetch error:', resp.status); return; }
+    var gpxText = await resp.text();
+
+    var pts = parseGPX(gpxText);
+    if (!pts.length) { console.warn('No points in GPX:', gpxFilename); return; }
+
+    var polyline = new google.maps.Polyline({
+      path: pts, strokeColor: color||'#e8a020',
+      strokeWeight: 4, strokeOpacity: 0.85, map: map
+    });
+
+    // Store for toggle visibility
+    if (layerId) {
+      if (!autoPolylines[layerId]) autoPolylines[layerId] = [];
+      autoPolylines[layerId].push(polyline);
+    }
+
+    return polyline;
+  } catch(e) { console.error('fetchAndRenderGPX error:', e); }
+}
+
+async function renderClickGPX(gpxFilename, color) {
+  // Clear any existing click polyline
+  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
+  try {
+    var fileId = await getFileId(gpxFilename, ROUTES_FOLDER_ID, routeCache);
+    if (!fileId) { console.warn('GPX file not found:', gpxFilename); return; }
+    var url = 'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media&key='+apiKey;
+    var resp = await fetch(url);
+    if (!resp.ok) return;
+    var gpxText = await resp.text();
+    var pts = parseGPX(gpxText);
+    if (!pts.length) return;
+    clickPolyline = new google.maps.Polyline({
+      path: pts, strokeColor: color||'#e8a020',
+      strokeWeight: 4, strokeOpacity: 0.85, map: map
+    });
+  } catch(e) { console.error('renderClickGPX error:', e); }
+}
+
+function parseGPX(text) {
+  var xml = new DOMParser().parseFromString(text, 'text/xml');
+  return Array.from(xml.querySelectorAll('trkpt,rtept,wpt'))
+    .map(function(p){ return {lat:parseFloat(p.getAttribute('lat')),lng:parseFloat(p.getAttribute('lon'))}; })
+    .filter(function(p){ return !isNaN(p.lat)&&!isNaN(p.lng); });
+}
+
+function clearClickGPX() {
+  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
 }
 
 // ── FIELD CONCATENATION ───────────────────────────────────
 function resolveField(fieldSpec, record) {
-  // fieldSpec can be "City+State+Zip" or just "Name"
   if (!fieldSpec) return '';
   var parts = fieldSpec.split('+');
-  var values = parts.map(function(p){
-    return (record[p.trim().toLowerCase()] || '').trim();
-  }).filter(function(v){ return v; });
-  if (values.length === 0) return '';
-  // Join City+State+Zip as "City, State Zip" style
-  if (parts.length === 3) return values[0]+', '+values[1]+' '+values[2];
-  if (parts.length === 2) return values[0]+', '+values[1];
+  var values = parts.map(function(p){ return (record[p.trim().toLowerCase()]||'').trim(); }).filter(Boolean);
+  if (!values.length) return '';
+  if (parts.length===3) return values[0]+', '+values[1]+' '+values[2];
+  if (parts.length===2) return values[0]+', '+values[1];
   return values[0];
 }
 
 // ── MARKERS ───────────────────────────────────────────────
-function makeMarker(place,layer,lat,lng,mtype){
+function makeMarker(place,layer,lat,lng){
   var m=new google.maps.Marker({
     position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
   m.addListener('mouseover',function(e){showTooltip(place,layer,e,'places');});
   m.addListener('mouseout',scheduleHide);
-  m.addListener('click',function(){showPopup(place,layer,'places');});
+  m.addListener('click',function(){showPopup(place,layer,'places',lat,lng,null);});
   return m;
 }
 
-function makeSheetMarker(record,layer,lat,lng,photoId){
+function makeSheetMarker(record,layer,lat,lng,photoId,hasClickGpx,gpxColor){
   var m=new google.maps.Marker({
     position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
     icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
   });
   m.addListener('mouseover',function(e){showTooltip(record,layer,e,'sheet');});
   m.addListener('mouseout',scheduleHide);
-  m.addListener('click',function(){showPopup(record,layer,'sheet',lat,lng,photoId);});
+  m.addListener('click',function(){
+    showPopup(record,layer,'sheet',lat,lng,photoId);
+    // If click-GPX layer, render the route
+    if (hasClickGpx && record._gpxFile) {
+      renderClickGPX(record._gpxFile, record._gpxColor);
+    }
+  });
   return m;
 }
 
 // ── TOOLTIP ───────────────────────────────────────────────
 function showTooltip(data,layer,event,dtype){
   var tt=document.getElementById('tooltip');
-  var name = dtype==='places' ? (data.displayName&&data.displayName.text||'Unknown') : resolveField(layer.hover[0]||'name', data);
+  var name = dtype==='places'
+    ? (data.displayName&&data.displayName.text||'Unknown')
+    : resolveField(layer.hover[0]||'name', data);
   document.getElementById('tt-name').textContent=name;
 
   var lines=[];
   if (dtype==='places') {
-    if(data.rating){ var s='★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating)); lines.push(s+' '+data.rating.toFixed(1)+(data.userRatingCount?' ('+data.userRatingCount.toLocaleString()+')':'')); }
+    if(data.rating){ lines.push('★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating))+' '+data.rating.toFixed(1)+(data.userRatingCount?' ('+data.userRatingCount.toLocaleString()+')':'')); }
     if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) lines.push(data.primaryTypeDisplayName.text);
     if(data.priceLevel) lines.push(priceStr(data.priceLevel));
   } else {
-    // Sheet layer hover fields (skip first — it's the name shown above)
     for (var i=1; i<layer.hover.length; i++) {
-      var val = resolveField(layer.hover[i], data);
-      if (val) lines.push(val);
+      var val=resolveField(layer.hover[i],data); if(val) lines.push(val);
     }
   }
   document.getElementById('tt-meta').textContent=lines.join(' · ');
 
-  var gmUrl = dtype==='places' ? gmapsUrl(data) : (data.latitude&&data.longitude ? 'https://www.google.com/maps?q='+data.latitude+','+data.longitude : 'https://www.google.com/maps');
+  var lat = dtype==='places' ? (data.location&&data.location.latitude) : null;
+  var lng = dtype==='places' ? (data.location&&data.location.longitude) : null;
+  var gmUrl = dtype==='places' ? gmapsUrl(data) : (lat ? 'https://www.google.com/maps?q='+lat+','+lng : 'https://www.google.com/maps');
   document.getElementById('tt-link').href=gmUrl;
 
   clearTimeout(_hideTimer);
@@ -669,7 +757,7 @@ function showTooltip(data,layer,event,dtype){
   var y=(event.domEvent&&event.domEvent.clientY||0)-rect.top;
   tt.style.left=(x+8)+'px'; tt.style.top=(y-4)+'px'; tt.style.display='block';
 }
-function scheduleHide(){ _hideTimer = setTimeout(function(){ document.getElementById('tooltip').style.display='none'; }, 300); }
+function scheduleHide(){ _hideTimer=setTimeout(function(){ document.getElementById('tooltip').style.display='none'; },300); }
 function hideTooltip(){ clearTimeout(_hideTimer); document.getElementById('tooltip').style.display='none'; }
 
 // ── POPUP ─────────────────────────────────────────────────
@@ -678,11 +766,12 @@ function showPopup(data,layer,dtype,lat,lng,photoId){
   document.getElementById('popup').classList.add('show');
   var tag=document.getElementById('popup-tag'); tag.textContent=layer.label; tag.style.background=layer.color;
 
-  // Name
-  var name = dtype==='places' ? (data.displayName&&data.displayName.text||'Unknown') : resolveField('name', data);
+  var name = dtype==='places'
+    ? (data.displayName&&data.displayName.text||'Unknown')
+    : resolveField('name',data);
   document.getElementById('popup-name').textContent=name;
 
-  // Rating (places only)
+  // Rating
   var rrow=document.getElementById('popup-rating');
   if(dtype==='places'&&data.rating){
     rrow.style.display='flex';
@@ -693,49 +782,57 @@ function showPopup(data,layer,dtype,lat,lng,photoId){
 
   // Photo
   var photo=document.getElementById('popup-photo'),ph=document.getElementById('popup-placeholder');
-  if (dtype==='places'&&data.photos&&data.photos.length) {
+  if(dtype==='places'&&data.photos&&data.photos.length){
     photo.src='https://places.googleapis.com/v1/'+data.photos[0].name+'/media?maxHeightPx=300&key='+apiKey;
     photo.style.display='block'; ph.style.display='none';
-  } else if (dtype==='sheet'&&photoId) {
+  } else if(dtype==='sheet'&&photoId){
     photo.src=getDriveImageUrl(photoId);
     photo.style.display='block'; ph.style.display='none';
-    photo.onerror=function(){ photo.style.display='none'; ph.style.display='flex'; };
+    photo.onerror=function(){ photo.style.display='none'; ph.style.display='flex'; ph.textContent='🚴'; };
   } else {
     photo.style.display='none'; ph.style.display='flex';
-    ph.textContent = dtype==='sheet' ? '👤' : '📍';
+    ph.textContent = dtype==='sheet' ? '🚴' : '📍';
   }
 
   // Fields
   var fields=document.getElementById('popup-fields'); fields.innerHTML='';
-  function addField(icon,text,link){
+  var fieldIcons={'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐'};
+
+  function addField(icon,text,isLink){
     if(!text) return;
     var row=document.createElement('div'); row.className='popup-field';
     var ic=document.createElement('div'); ic.className='popup-icon'; ic.textContent=icon;
     var tx=document.createElement('div'); tx.className='popup-text';
-    if(link){var a=document.createElement('a');a.href=text;a.target='_blank';a.textContent=text.replace(/^https?:\/\//,'').replace(/\/$/,'');tx.appendChild(a);}
-    else{tx.textContent=text;}
+    if(isLink){
+      var a=document.createElement('a');
+      // Handle both full URLs and plain text link labels
+      if(text.match(/^https?:\/\//)){a.href=text;a.textContent=text.replace(/^https?:\/\//,'').replace(/\/$/,'');}
+      else{a.href='#';a.textContent=text;}
+      a.target='_blank'; tx.appendChild(a);
+    } else { tx.textContent=text; }
     row.appendChild(ic); row.appendChild(tx); fields.appendChild(row);
   }
 
-  if (dtype==='places') {
+  if(dtype==='places'){
     if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) addField('🏷',data.primaryTypeDisplayName.text);
     if(data.editorialSummary&&data.editorialSummary.text) addField('📝',data.editorialSummary.text);
     if(data.priceLevel) addField('💰',priceStr(data.priceLevel));
     if(data.formattedAddress) addField('📍',data.formattedAddress);
-    if(data.regularOpeningHours&&data.regularOpeningHours.weekdayDescriptions){ var d=new Date().getDay(),idx=d===0?6:d-1; var h=data.regularOpeningHours.weekdayDescriptions[idx]; if(h) addField('🕐',h); }
+    if(data.regularOpeningHours&&data.regularOpeningHours.weekdayDescriptions){
+      var d=new Date().getDay(),idx=d===0?6:d-1;
+      var h=data.regularOpeningHours.weekdayDescriptions[idx]; if(h) addField('🕐',h);
+    }
     if(data.websiteUri) addField('🌐',data.websiteUri,true);
     if(data.nationalPhoneNumber) addField('📞',data.nationalPhoneNumber);
   } else {
-    // Sheet layer — use click fields from config, skip 'photo' (handled above) and name (shown in header)
-    var fieldIcons = {'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧'};
     layer.click.forEach(function(fieldSpec){
-      var key = fieldSpec.toLowerCase();
-      if (key==='photo'||key==='name') return;
-      var val = resolveField(fieldSpec, data);
-      if (!val) return;
-      var isLink = key==='website'||key==='email';
-      var icon = fieldIcons[key] || '•';
-      addField(icon, val, isLink);
+      var key=fieldSpec.toLowerCase().replace(/\s+/g,'');
+      if(key==='photo'||key==='name') return;
+      var val=resolveField(fieldSpec,data);
+      if(!val) return;
+      var isLink=(key==='website'||key==='link'||key==='email');
+      var icon=fieldIcons[fieldSpec.toLowerCase()]||fieldIcons[key]||'•';
+      addField(icon,val,isLink);
     });
   }
 
@@ -743,35 +840,38 @@ function showPopup(data,layer,dtype,lat,lng,photoId){
   var gmUrl = dtype==='places' ? gmapsUrl(data) : 'https://www.google.com/maps?q='+lat+','+lng;
   document.getElementById('popup-gmaps').href=gmUrl;
 }
-function closePopup(){ document.getElementById('popup').classList.remove('show'); }
+
+function closePopup(){
+  document.getElementById('popup').classList.remove('show');
+  clearClickGPX(); // clear any click-rendered route when popup closes
+}
 
 // ── HELPERS ───────────────────────────────────────────────
 function gmapsUrl(p){ return p.id?'https://www.google.com/maps/place/?q=place_id:'+p.id:(p.location?'https://www.google.com/maps?q='+p.location.latitude+','+p.location.longitude:'https://www.google.com/maps'); }
 function priceStr(l){ return {'PRICE_LEVEL_FREE':'Free','PRICE_LEVEL_INEXPENSIVE':'$','PRICE_LEVEL_MODERATE':'$$','PRICE_LEVEL_EXPENSIVE':'$$$','PRICE_LEVEL_VERY_EXPENSIVE':'$$$$'}[l]||''; }
 function setStatus(h){ document.getElementById('layers-status').textContent=h; }
 
-// ── ROUTE ─────────────────────────────────────────────────
+// ── ROUTE PLANNER ─────────────────────────────────────────
 function toggleRoute(){ routeOpen=!routeOpen; document.getElementById('route-panel').style.display=routeOpen?'block':'none'; document.getElementById('route-toggle').style.display=routeOpen?'none':'block'; }
 function showRoute(){
   var s=document.getElementById('r-start').value.trim(),e=document.getElementById('r-end').value.trim();
   if(!s||!e){alert('Enter start and end points.');return;}
   var ds=new google.maps.DirectionsService();
   ds.route({origin:s,destination:e,travelMode:google.maps.TravelMode[document.getElementById('r-mode').value]},function(res,status){
-    if(status==='OK'){if(gpxLine){gpxLine.setMap(null);gpxLine=null;}routeRenderer.setDirections(res);}
+    if(status==='OK'){clearClickGPX();routeRenderer.setDirections(res);}
     else alert('Route error: '+status);
   });
 }
-function clearRoute(){ routeRenderer.setDirections({routes:[]}); if(gpxLine){gpxLine.setMap(null);gpxLine=null;} }
-function loadGPX(e){
+function clearRoute(){ routeRenderer.setDirections({routes:[]}); clearClickGPX(); }
+function loadGPXFile(e){
   var file=e.target.files[0]; if(!file) return;
   var reader=new FileReader();
   reader.onload=function(ev){
-    var xml=new DOMParser().parseFromString(ev.target.result,'text/xml');
-    var pts=Array.from(xml.querySelectorAll('trkpt,rtept,wpt')).map(function(p){return{lat:parseFloat(p.getAttribute('lat')),lng:parseFloat(p.getAttribute('lon'))};}).filter(function(p){return !isNaN(p.lat)&&!isNaN(p.lng);});
+    var pts=parseGPX(ev.target.result);
     if(!pts.length){alert('No track points found.');return;}
-    if(gpxLine) gpxLine.setMap(null);
+    clearClickGPX();
     routeRenderer.setDirections({routes:[]});
-    gpxLine=new google.maps.Polyline({path:pts,strokeColor:'#e8a020',strokeWeight:4,strokeOpacity:0.85,map:map});
+    clickPolyline=new google.maps.Polyline({path:pts,strokeColor:'#e8a020',strokeWeight:4,strokeOpacity:0.85,map:map});
     var b=new google.maps.LatLngBounds(); pts.forEach(function(p){b.extend(p);}); map.fitBounds(b);
     setStatus('GPX loaded: '+pts.length+' points from "'+file.name+'"');
   };
