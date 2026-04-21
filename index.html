@@ -541,15 +541,15 @@ async function loadSheetLayer(layer) {
     var headers = {};
     rows[0].forEach(function(h,i){ headers[h.trim().toLowerCase()] = i; });
 
-    var latCol = headers['latitude'];
+var latCol = headers['latitude'];
     var lngCol = headers['longitude'];
     if (latCol===undefined||lngCol===undefined) { console.error('Missing lat/lng columns in '+layer.label); return 0; }
 
     var photoCol = headers['photo'];
 
     // Detect GPX behavior from headers
-    var gpxAutoCol = headers['gpx-auto'];   // auto-render on load
-    var gpxClickCol = headers['gpx'];        // render on click
+    var gpxAutoCol = headers['gpx-auto'];
+    var gpxClickCol = headers['gpx'];
     var gpxColorCol = headers['gpx color'] !== undefined ? headers['gpx color'] :
                       headers['route-color'] !== undefined ? headers['route-color'] : undefined;
 
@@ -563,7 +563,15 @@ async function loadSheetLayer(layer) {
       var row = rows[i];
       var lat = parseFloat(row[latCol]);
       var lng = parseFloat(row[lngCol]);
-      if (isNaN(lat)||isNaN(lng)) continue;
+      var hasPin = !isNaN(lat) && !isNaN(lng);
+
+      // GPX-Auto with no pin: just render the route, no marker needed
+      if (!hasPin) {
+        if (gpxAutoCol!==undefined && gpxFilename) {
+          promises.push(fetchAndRenderGPX(gpxFilename, gpxColor, layer.id));
+        }
+        continue;
+      }
 
       var record = {};
       rows[0].forEach(function(h,idx){ record[h.trim().toLowerCase()] = (row[idx]||'').trim(); });
