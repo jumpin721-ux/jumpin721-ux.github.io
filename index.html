@@ -565,6 +565,15 @@ var latCol = headers['latitude'];
       var lng = parseFloat(row[lngCol]);
       var hasPin = !isNaN(lat) && !isNaN(lng);
 
+      // Read GPX filename and color from this row BEFORE the no-pin check
+      var gpxFilename = '';
+      var gpxColor = '#e8a020';
+
+      if (gpxAutoCol!==undefined) gpxFilename = (row[gpxAutoCol]||'').trim();
+      else if (gpxClickCol!==undefined) gpxFilename = (row[gpxClickCol]||'').trim();
+
+      if (gpxColorCol!==undefined) gpxColor = parseColor((row[gpxColorCol]||'').trim()) || '#e8a020';
+
       // GPX-Auto with no pin: just render the route, no marker needed
       if (!hasPin) {
         if (gpxAutoCol!==undefined && gpxFilename) {
@@ -577,13 +586,6 @@ var latCol = headers['latitude'];
       rows[0].forEach(function(h,idx){ record[h.trim().toLowerCase()] = (row[idx]||'').trim(); });
 
       var photoFilename = (photoCol!==undefined) ? (row[photoCol]||'').trim() : '';
-      var gpxFilename = '';
-      var gpxColor = '#e8a020';
-
-      if (gpxAutoCol!==undefined) gpxFilename = (row[gpxAutoCol]||'').trim();
-      else if (gpxClickCol!==undefined) gpxFilename = (row[gpxClickCol]||'').trim();
-
-      if (gpxColorCol!==undefined) gpxColor = parseColor((row[gpxColorCol]||'').trim()) || '#e8a020';
 
       (function(rec, la, ln, pf, gf, gc, hasAutoGpx, hasClickGpx) {
         var p = pf ? getFileId(pf, IMAGES_FOLDER_ID, imageCache) : Promise.resolve(null);
@@ -688,10 +690,9 @@ async function renderClickGPX(gpxFilename, color) {
 
 function parseGPX(text) {
   var xml = new DOMParser().parseFromString(text, 'text/xml');
-  // Prefer track points, then route points, then waypoints as last resort
+  // Use track points first, then route points — never wpt (those are POIs/waypoints, not route lines)
   var pts = Array.from(xml.querySelectorAll('trkpt'));
   if (!pts.length) pts = Array.from(xml.querySelectorAll('rtept'));
-  if (!pts.length) pts = Array.from(xml.querySelectorAll('wpt'));
   return pts
     .map(function(p){ return {lat:parseFloat(p.getAttribute('lat')),lng:parseFloat(p.getAttribute('lon'))}; })
     .filter(function(p){ return !isNaN(p.lat)&&!isNaN(p.lng); });
