@@ -909,7 +909,6 @@ function parseGPX(text) {
 
   // Try track points first (recorded rides), fall back to route points (planned routes)
   var pts = Array.from(xml.querySelectorAll('trkpt'));
-  if (!pts.length) pts = Array.from(xml.querySelectorAll('rtept'));
   // Note: wpt (waypoints) intentionally excluded — they are POIs, not route geometry
 
   return pts
