@@ -14,7 +14,6 @@
     #header h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #e8a020; text-transform: uppercase; }
     .subtitle { font-size: 12px; color: #8896aa; letter-spacing: 2px; text-transform: uppercase; }
     .spacer { flex: 1; }
-    #api-key-input { background: #0f1420; border: 1px solid #2d3548; color: #e2e8f0; padding: 5px 10px; border-radius: 4px; font-size: 12px; width: 300px; font-family: monospace; }
     #load-btn { background: #e8a020; color: #0f1420; border: none; padding: 6px 16px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
     #load-btn:hover { opacity: 0.85; }
 
@@ -130,7 +129,6 @@
   <h1>🗺 Trip Planner</h1>
   <span class="subtitle">Jim's Adventure Map</span>
   <div class="spacer"></div>
-  <input id="api-key-input" type="text" placeholder="Paste your Google Maps API key…" autocomplete="off"/>
   <button id="load-btn">Load Map</button>
 </div>
 
@@ -138,7 +136,7 @@
   <div id="map-wrap">
     <div id="splash">
       <h2>Ready to Explore</h2>
-      <p>Paste your Google Maps API Key in the header and click <strong>Load Map</strong> to begin.</p>
+      <p>Click <strong>Load Map</strong> to begin.</p>
     </div>
     <div id="map"></div>
     <div id="config-loading"><div class="big-spin"></div><span id="loading-msg">Loading layer config…</span></div>
@@ -202,76 +200,140 @@
 </div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// CONFIGURATION
+// These constants are the only things you should need to
+// change when setting up the app for a new deployment.
+// ═══════════════════════════════════════════════════════════
+
+// Google Maps API key — restricted to this domain in Cloud Console.
+// Because it is domain-restricted, embedding it here is safe:
+// someone who copies the key can only use it from this same URL.
+const API_KEY = 'AIzaSyBuzcElvnGmLUbRa3LKDhEliiEHkGFYc_s';
+
+// Google Sheet that holds the layer configuration
+// (which layers exist, what type, what color, which data tab, etc.)
 const LAYERS_SHEET_ID = '15rXYK5K1PCI-iN50fPHjCX8RkYB0Ka90phN55ikGZEU';
-const LAYERS_TAB = 'Sheet1';
+const LAYERS_TAB      = 'Sheet1';
+
+// Google Drive folder IDs for photos and GPX route files
 const IMAGES_FOLDER_ID = '1roG8susT1hQp8DDXZW28rXVHoyarhCt3';
 const ROUTES_FOLDER_ID = '1a9YjGtJgk2NLwE-Hzy367cNViuZ5ciL7';
 
+// Column indices (0-based) in the layer config sheet.
+// These map each sheet column to a named property.
 const COL = {
   LAYER:0, TYPE:1, GROUP:2, SEARCH_FOR:3, API_TYPE:4,
   COLOR:5, ICON:6, SHEET_ID:7, TAB:8,
-  HOVER_START:9, CLICK_START:14
+  HOVER_START:9,   // columns 9-13  → up to 5 hover fields
+  CLICK_START:14   // columns 14-24 → up to 11 click/popup fields
 };
 
-// ── STATE ─────────────────────────────────────────────────
-let map, apiKey='', markers={}, enabled={}, seen=new Set();
-let routeRenderer, gpxLine, routeOpen=false, layersPanelOpen=false;
-let LAYERS=[];
-let sheetLoaded={};
-let imageCache={};   // filename -> Drive file ID
-let routeCache={};   // filename -> Drive file ID
-let autoPolylines={}; // layerId -> array of google.maps.Polyline (for GPX-Auto)
-let clickPolyline=null; // single polyline for GPX click-to-render
-var _hideTimer=null;
+// ═══════════════════════════════════════════════════════════
+// APPLICATION STATE
+// All mutable state lives here so it is easy to find.
+// ═══════════════════════════════════════════════════════════
 
-// ── BOOT ──────────────────────────────────────────────────
+let map;                  // The google.maps.Map instance
+let apiKey = API_KEY;     // Kept as a variable so future code can override it
+let markers  = {};        // layerId → [{marker, place|record}]
+let enabled  = {};        // layerId → boolean (is this layer visible?)
+let seen     = new Set(); // Place IDs already plotted (prevents duplicates)
+let routeRenderer;        // google.maps.DirectionsRenderer for the Route Planner
+let routeOpen      = false;
+let layersPanelOpen = false;
+let LAYERS = [];          // Array of layer config objects built from the sheet
+let sheetLoaded = {};     // layerId → boolean (has this sheet layer been fetched yet?)
+let imageCache = {};      // filename → Drive file ID  (avoids repeat Drive API calls)
+let routeCache = {};      // filename → Drive file ID  (for GPX files on Drive)
+let autoPolylines = {};   // layerId → [google.maps.Polyline] for GPX-Auto routes
+let clickPolyline  = null; // Single polyline shown when user clicks a Bike Rides marker
+var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
+
+// ═══════════════════════════════════════════════════════════
+// BOOT — wire up button/event listeners before the map loads
+// ═══════════════════════════════════════════════════════════
+
+// The Load Map button kicks everything off
 document.getElementById('load-btn').addEventListener('click', function() {
-  apiKey = document.getElementById('api-key-input').value.trim();
-  if (!apiKey) { alert('Please enter your API key first.'); return; }
+  // Avoid re-loading Google Maps JS if it is already on the page
   if (window.google && window.google.maps) { initMap(); return; }
   setStatus('Loading Google Maps…');
   var s = document.createElement('script');
+  // 'libraries=routes' loads the modern Routes library (needed by DirectionsService)
+  // 'callback=initMap' tells Google Maps to call our initMap() when ready
+  // 'loading=async' prevents the script from blocking page render
   s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&libraries=routes&callback=initMap&loading=async';
   s.async = true;
-  s.onerror = function(){ setStatus('Failed to load. Check your API key.'); };
+  s.onerror = function(){ setStatus('Failed to load Google Maps. Check the API key.'); };
   document.head.appendChild(s);
 });
-document.getElementById('search-btn').addEventListener('click', searchArea);
-document.getElementById('toggle-all').addEventListener('click', toggleAll);
+
+// Wire up the rest of the UI controls
+document.getElementById('search-btn').addEventListener('click',  searchArea);
+document.getElementById('toggle-all').addEventListener('click',  toggleAll);
 document.getElementById('route-toggle').addEventListener('click', toggleRoute);
-document.getElementById('r-go').addEventListener('click', showRoute);
-document.getElementById('r-clear').addEventListener('click', clearRoute);
-document.getElementById('gpx-file').addEventListener('change', loadGPXFile);
+document.getElementById('r-go').addEventListener('click',        showRoute);
+document.getElementById('r-clear').addEventListener('click',     clearRoute);
+document.getElementById('gpx-file').addEventListener('change',   loadGPXFile);
 document.getElementById('popup-close').addEventListener('click', closePopup);
 
-// ── INIT MAP ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// INIT MAP — called by Google Maps JS once it has loaded
+// ═══════════════════════════════════════════════════════════
+
 window.initMap = async function() {
+  // Hide the splash screen now that we have a map to show
   document.getElementById('splash').style.display = 'none';
+
+  // Restore the last map position from localStorage, or default to Dayton OH
   var saved = getSaved();
+
   map = new google.maps.Map(document.getElementById('map'), {
-    center: saved.center, zoom: saved.zoom, mapTypeId: 'roadmap',
-    streetViewControl: false, fullscreenControl: false,
-    mapTypeControl: true, mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
-    zoomControl: true, zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
-    styles: mapStyles()
+    center:   saved.center,
+    zoom:     saved.zoom,
+    mapTypeId: 'roadmap',
+    // Hide controls we don't need
+    streetViewControl:  false,
+    fullscreenControl:  false,
+    // Keep map type (road/satellite) and zoom in sensible positions
+    mapTypeControl:     true,
+    mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
+    zoomControl:        true,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+    styles: mapStyles()   // suppress default POI clutter
   });
+
+  // Save position whenever the map comes to rest after a pan/zoom
   map.addListener('idle', savePos);
+
+  // Clicking the map background closes the popup
   map.addListener('click', closePopup);
+
+  // Keep tooltip alive while the mouse is over it,
+  // but hide it shortly after the mouse leaves
   document.getElementById('tooltip').addEventListener('mouseenter', function(){ clearTimeout(_hideTimer); });
   document.getElementById('tooltip').addEventListener('mouseleave', scheduleHide);
 
+  // Set up the Route Planner renderer (used by showRoute() / DirectionsService)
   routeRenderer = new google.maps.DirectionsRenderer({
-    map: map, suppressMarkers: false,
+    map: map,
+    suppressMarkers: false,
     polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
   });
 
-  document.getElementById('load-btn').disabled = true;
+  // Update the Load button so the user knows it worked
+  document.getElementById('load-btn').disabled    = true;
   document.getElementById('load-btn').textContent = 'Loaded ✓';
 
+  // Fetch the layer configuration from Google Sheets and build the panel
   showLoadingMsg('Loading layer config…');
-  try { await loadLayerConfig(); }
-  catch(e) { console.error('Config load error:', e); setStatus('Error loading config: '+e.message); }
+  try {
+    await loadLayerConfig();
+  } catch(e) {
+    console.error('Config load error:', e);
+    setStatus('Error loading config: ' + e.message);
+  }
   hideLoading();
 
   buildPanel();
@@ -280,386 +342,532 @@ window.initMap = async function() {
   setStatus('Map loaded. Click Search This Area to begin.');
 };
 
+// Helper: show the full-screen loading overlay with a custom message
 function showLoadingMsg(msg) {
   document.getElementById('loading-msg').textContent = msg;
   document.getElementById('config-loading').classList.add('show');
 }
+// Helper: hide the loading overlay
 function hideLoading() {
   document.getElementById('config-loading').classList.remove('show');
 }
 
-// ── LOAD LAYER CONFIG ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// LOAD LAYER CONFIG FROM GOOGLE SHEETS
+// Reads the config sheet and builds the LAYERS array.
+// Each layer is either:
+//   type:'group'  — a collapsible header in the panel
+//   type:'places' — queries the Google Places API nearby
+//   type:'sheet'  — reads a separate Google Sheet for pin data
+// ═══════════════════════════════════════════════════════════
+
 async function loadLayerConfig() {
-  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+LAYERS_SHEET_ID+'/values/'+encodeURIComponent(LAYERS_TAB)+'?key='+apiKey;
+  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'
+          + LAYERS_SHEET_ID + '/values/'
+          + encodeURIComponent(LAYERS_TAB)
+          + '?key=' + apiKey;
+
   var resp = await fetch(url);
-  if (!resp.ok) throw new Error('Could not read config sheet ('+resp.status+')');
+  if (!resp.ok) throw new Error('Could not read config sheet (' + resp.status + ')');
   var data = await resp.json();
   var rows = data.values || [];
+
   LAYERS = [];
-  var currentGroup = null;
+  var currentGroup = null; // tracks the most recent Group row so children can attach to it
 
-  for (var i=1; i<rows.length; i++) {
+  // Start at row 1 to skip the header row
+  for (var i = 1; i < rows.length; i++) {
     var row = rows[i];
-    if (!row || !row[COL.LAYER]) continue;
-    var layerName = (row[COL.LAYER]||'').trim();
-    var layerType = (row[COL.TYPE]||'').trim();
-    if (!layerType) continue; // blank type = disabled
+    if (!row || !row[COL.LAYER]) continue;        // skip blank rows
+    var layerName = (row[COL.LAYER] || '').trim();
+    var layerType = (row[COL.TYPE]  || '').trim();
+    if (!layerType) continue;                      // blank type = layer disabled
 
-    var groupName = (row[COL.GROUP]||'').trim().replace(/^-$/,'');
-    var apiType   = (row[COL.API_TYPE]||'').trim();
-    var colorRaw  = (row[COL.COLOR]||'').trim();
-    var sheetId   = (row[COL.SHEET_ID]||'').trim();
-    var tabName   = (row[COL.TAB]||'').trim().replace(/^-$/,'');
+    var groupName = (row[COL.GROUP]    || '').trim().replace(/^-$/, '');
+    var apiType   = (row[COL.API_TYPE] || '').trim();
+    var colorRaw  = (row[COL.COLOR]    || '').trim();
+    var sheetId   = (row[COL.SHEET_ID] || '').trim();
+    var tabName   = (row[COL.TAB]      || '').trim().replace(/^-$/, '');
     var color     = parseColor(colorRaw);
 
-    var hover=[], click=[];
-    for (var h=0; h<5; h++) { var v=(row[COL.HOVER_START+h]||'').trim(); if(v&&v!=='-') hover.push(v); }
-    for (var c=0; c<11; c++) { var v2=(row[COL.CLICK_START+c]||'').trim(); if(v2&&v2!=='-') click.push(v2); }
+    // Collect up to 5 hover fields and up to 11 click/popup fields,
+    // skipping any cell that is empty or contains just a dash placeholder
+    var hover = [], click = [];
+    for (var h = 0; h < 5;  h++) { var v  = (row[COL.HOVER_START + h] || '').trim(); if (v && v !== '-') hover.push(v); }
+    for (var c = 0; c < 11; c++) { var v2 = (row[COL.CLICK_START + c] || '').trim(); if (v2 && v2 !== '-') click.push(v2); }
 
-    if (layerType==='Group') {
-      currentGroup = { id:slugify(layerName), type:'group', label:layerName, children:[] };
+    if (layerType === 'Group') {
+      // Group rows create a collapsible section header in the layer panel
+      currentGroup = { id: slugify(layerName), type: 'group', label: layerName, children: [] };
       LAYERS.push(currentGroup);
-    } else if (layerType==='Places API') {
-      var layer = { id:slugify(layerName), type:'places', label:layerName, color:color, searchType:apiType, hover:hover, click:click };
-      if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(layer);
+
+    } else if (layerType === 'Places API') {
+      // Places API layers search Google Places by type (e.g. 'campground', 'restaurant')
+      var layer = { id: slugify(layerName), type: 'places', label: layerName, color: color, searchType: apiType, hover: hover, click: click };
+      if (groupName && currentGroup && currentGroup.label === groupName) currentGroup.children.push(layer);
       else LAYERS.push(layer);
-    } else if (layerType==='Google Sheet') {
-      var slayer = { id:slugify(layerName), type:'sheet', label:layerName, color:color, sheetId:sheetId, tabName:tabName, hover:hover, click:click };
-      if (groupName && currentGroup && currentGroup.label===groupName) currentGroup.children.push(slayer);
+
+    } else if (layerType === 'Google Sheet') {
+      // Sheet layers read pin data (lat/lng/name/etc.) from a separate Google Sheet tab
+      var slayer = { id: slugify(layerName), type: 'sheet', label: layerName, color: color, sheetId: sheetId, tabName: tabName, hover: hover, click: click };
+      if (groupName && currentGroup && currentGroup.label === groupName) currentGroup.children.push(slayer);
       else LAYERS.push(slayer);
     }
   }
 }
 
+// ── Color and ID helpers ───────────────────────────────────
+
+// Accept either a hex color '#rrggbb' or a friendly name like 'orange'
 function parseColor(raw) {
   if (!raw) return '#999999';
   var hex = raw.match(/#[0-9a-fA-F]{6}/);
   if (hex) return hex[0];
   var names = { 'red':'#e05252','orange':'#e8841a','dkblue':'#2e6fbf','medblue':'#4a90c4','ltblue':'#7ab4d8','green':'#3daa5c','pink':'#d47fa6','brown':'#8B5E3C','purple':'#7B4FBF','blue':'#3d9be9' };
-  return names[raw.toLowerCase().replace(/\s+/g,'')] || '#999999';
+  return names[raw.toLowerCase().replace(/\s+/g, '')] || '#999999';
 }
-function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
 
-// ── POSITION ──────────────────────────────────────────────
+// Convert a human-readable name to a safe DOM/object key, e.g. "Bike Rides" → "bike-rides"
+function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+// ═══════════════════════════════════════════════════════════
+// MAP POSITION PERSISTENCE
+// Saves/restores the last map center and zoom in localStorage
+// so the user picks up where they left off on reload.
+// ═══════════════════════════════════════════════════════════
+
 function savePos() {
   if (!map) return;
-  var c=map.getCenter();
-  try { localStorage.setItem('tp_pos',JSON.stringify({lat:c.lat(),lng:c.lng(),zoom:map.getZoom()})); } catch(e){}
+  var c = map.getCenter();
+  try { localStorage.setItem('tp_pos', JSON.stringify({ lat: c.lat(), lng: c.lng(), zoom: map.getZoom() })); } catch(e) {}
 }
+
 function getSaved() {
-  try { var p=JSON.parse(localStorage.getItem('tp_pos')); if(p&&p.lat) return {center:{lat:p.lat,lng:p.lng},zoom:p.zoom||10}; } catch(e){}
-  return {center:{lat:39.7589,lng:-84.1916},zoom:10};
+  try {
+    var p = JSON.parse(localStorage.getItem('tp_pos'));
+    if (p && p.lat) return { center: { lat: p.lat, lng: p.lng }, zoom: p.zoom || 10 };
+  } catch(e) {}
+  return { center: { lat: 39.7589, lng: -84.1916 }, zoom: 10 }; // default: Dayton OH
 }
 
-// ── PANEL ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// LAYER PANEL — builds the checkbox list in the Layers widget
+// ═══════════════════════════════════════════════════════════
+
 function toggleLayersPanel() {
-  layersPanelOpen=!layersPanelOpen;
-  document.getElementById('layers-toggle-btn').classList.toggle('open',layersPanelOpen);
-  document.getElementById('layers-dropdown').classList.toggle('open',layersPanelOpen);
+  layersPanelOpen = !layersPanelOpen;
+  document.getElementById('layers-toggle-btn').classList.toggle('open', layersPanelOpen);
+  document.getElementById('layers-dropdown').classList.toggle('open', layersPanelOpen);
 }
 
+// Flatten the LAYERS tree to get just the leaf (non-group) layers
 function getAllLeaf() {
-  var r=[];
-  LAYERS.forEach(function(l){ if(l.type==='group') l.children.forEach(function(c){r.push(c);}); else r.push(l); });
+  var r = [];
+  LAYERS.forEach(function(l) {
+    if (l.type === 'group') l.children.forEach(function(c) { r.push(c); });
+    else r.push(l);
+  });
   return r;
 }
 
+// Builds the full panel DOM from the LAYERS array
 function buildPanel() {
-  var list=document.getElementById('layers-list');
-  list.innerHTML='';
+  var list = document.getElementById('layers-list');
+  list.innerHTML = '';
   LAYERS.forEach(function(item) {
-    if (item.type==='group') {
-      var wrap=document.createElement('div');
-      var hdr=document.createElement('div'); hdr.className='group-hdr';
-      var chev=document.createElement('span'); chev.className='chevron'; chev.textContent='▾';
-      var gcb=document.createElement('input'); gcb.type='checkbox'; gcb.className='group-cb'; gcb.checked=true;
-      var lbl=document.createElement('span'); lbl.className='group-lbl'; lbl.textContent=item.label;
+    if (item.type === 'group') {
+      // Create a collapsible group header with a master checkbox
+      var wrap = document.createElement('div');
+      var hdr  = document.createElement('div'); hdr.className = 'group-hdr';
+      var chev = document.createElement('span'); chev.className = 'chevron'; chev.textContent = '▾';
+      var gcb  = document.createElement('input'); gcb.type = 'checkbox'; gcb.className = 'group-cb'; gcb.checked = true;
+      var lbl  = document.createElement('span'); lbl.className = 'group-lbl'; lbl.textContent = item.label;
       hdr.appendChild(chev); hdr.appendChild(gcb); hdr.appendChild(lbl);
-      var kids=document.createElement('div'); kids.className='group-kids';
-      hdr.addEventListener('click',function(e){ if(e.target===gcb) return; kids.classList.toggle('hidden'); chev.classList.toggle('closed'); });
-      gcb.addEventListener('change',function(){
-        item.children.forEach(function(child){
-          enabled[child.id]=gcb.checked;
-          var cb=document.querySelector('[data-id="'+child.id+'"] .layer-cb'); if(cb) cb.checked=gcb.checked;
-          setVisible(child.id,gcb.checked);
+      var kids = document.createElement('div'); kids.className = 'group-kids';
+
+      // Clicking anywhere on the header (except the checkbox) toggles collapse
+      hdr.addEventListener('click', function(e) {
+        if (e.target === gcb) return; // let checkbox handle its own click
+        kids.classList.toggle('hidden');
+        chev.classList.toggle('closed');
+      });
+
+      // The group checkbox shows/hides all children at once
+      gcb.addEventListener('change', function() {
+        item.children.forEach(function(child) {
+          enabled[child.id] = gcb.checked;
+          var cb = document.querySelector('[data-id="' + child.id + '"] .layer-cb');
+          if (cb) cb.checked = gcb.checked;
+          setVisible(child.id, gcb.checked);
+          // Also toggle any auto-rendered GPX polylines for this child
+          if (autoPolylines[child.id]) {
+            autoPolylines[child.id].forEach(function(p) { p.setVisible(gcb.checked); });
+          }
         });
       });
-      item.children.forEach(function(child){ kids.appendChild(makeLayerRow(child,true)); });
+
+      item.children.forEach(function(child) { kids.appendChild(makeLayerRow(child, true)); });
       wrap.appendChild(hdr); wrap.appendChild(kids); list.appendChild(wrap);
     } else {
-      list.appendChild(makeLayerRow(item,false));
+      list.appendChild(makeLayerRow(item, false));
     }
   });
 }
 
-function makeLayerRow(layer,isChild) {
-  enabled[layer.id]=true; markers[layer.id]=[];
-  var row=document.createElement('div'); row.className='layer-row'+(isChild?'':' ungrouped'); row.dataset.id=layer.id;
-  var cb=document.createElement('input'); cb.type='checkbox'; cb.className='layer-cb'; cb.checked=true;
-  cb.addEventListener('change',function(){
-    toggleLayer(layer.id,cb.checked);
-    if (cb.checked && layer.type==='sheet' && !sheetLoaded[layer.id]) {
+// Creates a single layer row (checkbox + color dot + label + count badge)
+function makeLayerRow(layer, isChild) {
+  enabled[layer.id] = true;
+  markers[layer.id] = [];
+
+  var row = document.createElement('div');
+  row.className  = 'layer-row' + (isChild ? '' : ' ungrouped');
+  row.dataset.id = layer.id;
+
+  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'layer-cb'; cb.checked = true;
+  cb.addEventListener('change', function() {
+    toggleLayer(layer.id, cb.checked);
+    // If the user re-enables a sheet layer that was never loaded, load it now
+    if (cb.checked && layer.type === 'sheet' && !sheetLoaded[layer.id]) {
       loadSheetLayer(layer);
     }
-    // Toggle auto polylines visibility
+    // Show/hide the GPX polylines drawn for this layer
     if (autoPolylines[layer.id]) {
-      autoPolylines[layer.id].forEach(function(p){ p.setVisible(cb.checked); });
+      autoPolylines[layer.id].forEach(function(p) { p.setVisible(cb.checked); });
     }
   });
-  var dot=document.createElement('div'); dot.className='layer-dot'; dot.style.background=layer.color;
-  var lbl=document.createElement('span'); lbl.className='layer-lbl'; lbl.textContent=layer.label;
-  var cnt=document.createElement('span'); cnt.className='layer-cnt'; cnt.id='cnt-'+layer.id;
+
+  var dot = document.createElement('div'); dot.className = 'layer-dot'; dot.style.background = layer.color;
+  var lbl = document.createElement('span'); lbl.className = 'layer-lbl'; lbl.textContent = layer.label;
+  var cnt = document.createElement('span'); cnt.className = 'layer-cnt'; cnt.id = 'cnt-' + layer.id;
+
   row.appendChild(cb); row.appendChild(dot); row.appendChild(lbl); row.appendChild(cnt);
   return row;
 }
 
-function toggleLayer(id,on){ enabled[id]=on; setVisible(id,on); }
-function setVisible(id,on){ (markers[id]||[]).forEach(function(m){m.marker.setVisible(on);}); }
-function toggleAll(){
-  var btn=document.getElementById('toggle-all');
-  var allOn=btn.textContent==='All Off';
-  btn.textContent=allOn?'All On':'All Off';
-  // Sync leaf layers
-  getAllLeaf().forEach(function(l){
-    enabled[l.id]=!allOn; setVisible(l.id,!allOn);
-    var cb=document.querySelector('[data-id="'+l.id+'"] .layer-cb'); if(cb) cb.checked=!allOn;
-    if(autoPolylines[l.id]) autoPolylines[l.id].forEach(function(p){p.setVisible(!allOn);});
+// Show or hide all markers for a given layer
+function toggleLayer(id, on)  { enabled[id] = on; setVisible(id, on); }
+function setVisible(id, on)   { (markers[id] || []).forEach(function(m) { m.marker.setVisible(on); }); }
+
+// Toggle all layers on or off at once (the "All Off / All On" button)
+function toggleAll() {
+  var btn   = document.getElementById('toggle-all');
+  var allOn = btn.textContent === 'All Off';
+  btn.textContent = allOn ? 'All On' : 'All Off';
+
+  getAllLeaf().forEach(function(l) {
+    enabled[l.id] = !allOn;
+    setVisible(l.id, !allOn);
+    var cb = document.querySelector('[data-id="' + l.id + '"] .layer-cb');
+    if (cb) cb.checked = !allOn;
+    if (autoPolylines[l.id]) autoPolylines[l.id].forEach(function(p) { p.setVisible(!allOn); });
   });
-  // Sync group checkboxes
-  document.querySelectorAll('.group-cb').forEach(function(gcb){ gcb.checked=!allOn; });
+  // Also sync the group-level checkboxes
+  document.querySelectorAll('.group-cb').forEach(function(gcb) { gcb.checked = !allOn; });
 }
 
-// ── SEARCH THIS AREA ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// SEARCH THIS AREA
+// Fires off searches for all active Places API layers within
+// the current map viewport, and loads any unloaded Sheet layers.
+// ═══════════════════════════════════════════════════════════
+
 function searchArea() {
   if (!map) return;
-  var btn=document.getElementById('search-btn');
-  btn.classList.add('searching'); btn.disabled=true;
+  var btn = document.getElementById('search-btn');
+  btn.classList.add('searching'); btn.disabled = true;
   setStatus('Searching…');
 
-  // Clear only Places layer markers
-  getAllLeaf().forEach(function(l){
-    if (l.type!=='places') return;
-    (markers[l.id]||[]).forEach(function(m){m.marker.setMap(null);});
-    markers[l.id]=[];
-    var el=document.getElementById('cnt-'+l.id); if(el) el.textContent='';
+  // Clear existing Places markers so re-searching a new area starts fresh
+  getAllLeaf().forEach(function(l) {
+    if (l.type !== 'places') return;
+    (markers[l.id] || []).forEach(function(m) { m.marker.setMap(null); });
+    markers[l.id] = [];
+    var el = document.getElementById('cnt-' + l.id); if (el) el.textContent = '';
   });
   seen.clear();
 
-  var bounds=map.getBounds(), center=map.getCenter();
-  var radius=Math.min(calcRadius(bounds),50000);
+  var bounds = map.getBounds(), center = map.getCenter();
+  var radius = Math.min(calcRadius(bounds), 50000); // cap at 50 km
 
-  var activePlaces=getAllLeaf().filter(function(l){ return enabled[l.id]&&l.type==='places'&&l.searchType; });
-  var activeSheets=getAllLeaf().filter(function(l){ return enabled[l.id]&&l.type==='sheet'&&l.sheetId&&!sheetLoaded[l.id]; });
+  // Gather active Places layers and Sheet layers that haven't loaded yet
+  var activePlaces = getAllLeaf().filter(function(l) { return enabled[l.id] && l.type === 'places' && l.searchType; });
+  var activeSheets = getAllLeaf().filter(function(l) { return enabled[l.id] && l.type === 'sheet' && l.sheetId && !sheetLoaded[l.id]; });
 
-  var promises=[];
-  activePlaces.forEach(function(l){ promises.push(searchLayer(l,center,radius)); });
-  activeSheets.forEach(function(l){ promises.push(loadSheetLayer(l)); });
+  var promises = [];
+  activePlaces.forEach(function(l) { promises.push(searchLayer(l, center, radius)); });
+  activeSheets.forEach(function(l) { promises.push(loadSheetLayer(l)); });
 
   if (!promises.length) {
     setStatus('No active layers to search.');
-    btn.classList.remove('searching'); btn.disabled=false;
+    btn.classList.remove('searching'); btn.disabled = false;
     return;
   }
 
-  Promise.allSettled(promises).then(function(results){
-    var total=0; results.forEach(function(r){if(r.status==='fulfilled'&&r.value) total+=r.value;});
-    setStatus('Found '+total+' results across '+(activePlaces.length+activeSheets.length)+' active layers.');
-    btn.classList.remove('searching'); btn.disabled=false;
+  // Wait for all searches to complete before updating the status bar
+  Promise.allSettled(promises).then(function(results) {
+    var total = 0;
+    results.forEach(function(r) { if (r.status === 'fulfilled' && r.value) total += r.value; });
+    setStatus('Found ' + total + ' results across ' + (activePlaces.length + activeSheets.length) + ' active layers.');
+    btn.classList.remove('searching'); btn.disabled = false;
   });
 }
 
-function calcRadius(bounds){
-  if(!bounds) return 10000;
-  var ne=bounds.getNorthEast(),sw=bounds.getSouthWest(),R=6371000;
-  var lat1=ne.lat()*Math.PI/180,lat2=sw.lat()*Math.PI/180;
-  var dLat=lat2-lat1,dLng=(sw.lng()-ne.lng())*Math.PI/180;
-  var a=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))/2;
+// Calculate the radius of the current map viewport in metres (used for Places API)
+function calcRadius(bounds) {
+  if (!bounds) return 10000;
+  var ne = bounds.getNorthEast(), sw = bounds.getSouthWest(), R = 6371000;
+  var lat1 = ne.lat() * Math.PI / 180, lat2 = sw.lat() * Math.PI / 180;
+  var dLat = lat2 - lat1, dLng = (sw.lng() - ne.lng()) * Math.PI / 180;
+  var a = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) / 2;
 }
 
-// ── PLACES SEARCH ─────────────────────────────────────────
-function searchLayer(layer,center,radius){
-  var fieldMask=buildMask(layer);
-  var body={includedTypes:[layer.searchType],maxResultCount:20,locationRestriction:{circle:{center:{latitude:center.lat(),longitude:center.lng()},radius:radius}}};
-  function fetchPage(pageToken){
-    var req=Object.assign({},body); if(pageToken) req.pageToken=pageToken;
-    return fetch('https://places.googleapis.com/v1/places:searchNearby',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-Goog-Api-Key':apiKey,'X-Goog-FieldMask':fieldMask},
-      body:JSON.stringify(req)
-    }).then(function(resp){
-      if(!resp.ok) return 0;
-      return resp.json().then(function(data){
-        var places=data.places||[],count=0;
-        places.forEach(function(p){
-          var pid=p.id||p.name; if(seen.has(pid)) return; seen.add(pid);
-          var lat=p.location&&p.location.latitude,lng=p.location&&p.location.longitude;
-          if(!lat||!lng) return;
-          markers[layer.id].push({marker:makeMarker(p,layer,lat,lng),place:p}); count++;
+// ═══════════════════════════════════════════════════════════
+// PLACES API SEARCH
+// Calls the Google Places API (New) searchNearby endpoint for
+// one layer. Handles pagination via nextPageToken automatically.
+// ═══════════════════════════════════════════════════════════
+
+function searchLayer(layer, center, radius) {
+  var fieldMask = buildMask(layer); // only request fields we actually display
+  var body = {
+    includedTypes:       [layer.searchType],
+    maxResultCount:      20,
+    locationRestriction: { circle: { center: { latitude: center.lat(), longitude: center.lng() }, radius: radius } }
+  };
+
+  // Recursive inner function handles pagination (nextPageToken)
+  function fetchPage(pageToken) {
+    var req = Object.assign({}, body);
+    if (pageToken) req.pageToken = pageToken;
+    return fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': fieldMask },
+      body:    JSON.stringify(req)
+    }).then(function(resp) {
+      if (!resp.ok) return 0;
+      return resp.json().then(function(data) {
+        var places = data.places || [], count = 0;
+        places.forEach(function(p) {
+          var pid = p.id || p.name;
+          if (seen.has(pid)) return;    // skip duplicates across layers
+          seen.add(pid);
+          var lat = p.location && p.location.latitude;
+          var lng = p.location && p.location.longitude;
+          if (!lat || !lng) return;
+          markers[layer.id].push({ marker: makeMarker(p, layer, lat, lng), place: p });
+          count++;
         });
-        var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=(parseInt(el.textContent||0)+count)||'';
-        if(data.nextPageToken) return fetchPage(data.nextPageToken).then(function(more){return count+more;});
+        var el = document.getElementById('cnt-' + layer.id);
+        if (el) el.textContent = (parseInt(el.textContent || 0) + count) || '';
+        // If there are more results, fetch the next page
+        if (data.nextPageToken) return fetchPage(data.nextPageToken).then(function(more) { return count + more; });
         return count;
       });
-    }).catch(function(e){console.error(e);return 0;});
+    }).catch(function(e) { console.error(e); return 0; });
   }
   return fetchPage(null);
 }
 
-function buildMask(layer){
-  var base=['id','displayName','location','primaryTypeDisplayName'];
-  var extras=new Set();
-  (layer.hover||[]).concat(layer.click||[]).forEach(function(f){
-    var n=f.toLowerCase().replace(/\s+/g,'');
-    if(n==='name') extras.add('displayName');
-    else if(n==='photo') extras.add('photos');
-    else if(n==='rating') extras.add('rating');
-    else if(n==='userratingcount'||n==='reviewcount') extras.add('userRatingCount');
-    else if(n==='formattedaddress'||n==='address') extras.add('formattedAddress');
-    else if(n==='websiteuri'||n==='website') extras.add('websiteUri');
-    else if(n==='nationalPhonenumber'||n==='phone') extras.add('nationalPhoneNumber');
-    else if(n==='regularopeninghours'||n==='hours') extras.add('regularOpeningHours');
-    else if(n==='editorialsummary'||n==='description') extras.add('editorialSummary');
-    else if(n==='pricelevel'||n==='dollarrange') extras.add('priceLevel');
-    else if(n==='primarytypedisplayname'||n==='cuisine'||n==='category') extras.add('primaryTypeDisplayName');
+// Build the Places API field mask — only request what each layer needs,
+// since unused fields add cost.
+function buildMask(layer) {
+  var base   = ['id', 'displayName', 'location', 'primaryTypeDisplayName'];
+  var extras = new Set();
+  (layer.hover || []).concat(layer.click || []).forEach(function(f) {
+    var n = f.toLowerCase().replace(/\s+/g, '');
+    if      (n === 'name')                               extras.add('displayName');
+    else if (n === 'photo')                              extras.add('photos');
+    else if (n === 'rating')                             extras.add('rating');
+    else if (n === 'userratingcount' || n === 'reviewcount') extras.add('userRatingCount');
+    else if (n === 'formattedaddress' || n === 'address')   extras.add('formattedAddress');
+    else if (n === 'websiteuri' || n === 'website')      extras.add('websiteUri');
+    else if (n === 'nationalPhonenumber' || n === 'phone')  extras.add('nationalPhoneNumber');
+    else if (n === 'regularopeninghours' || n === 'hours')  extras.add('regularOpeningHours');
+    else if (n === 'editorialsummary' || n === 'description') extras.add('editorialSummary');
+    else if (n === 'pricelevel' || n === 'dollarrange')  extras.add('priceLevel');
+    else if (n === 'primarytypedisplayname' || n === 'cuisine' || n === 'category') extras.add('primaryTypeDisplayName');
   });
-  return Array.from(new Set(base.concat(Array.from(extras)))).map(function(f){return 'places.'+f;}).join(',');
+  return Array.from(new Set(base.concat(Array.from(extras))))
+              .map(function(f) { return 'places.' + f; })
+              .join(',');
 }
 
-// ── SHEET LAYER LOADING ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// SHEET LAYER LOADING
+// Reads a Google Sheet tab to plot markers from stored lat/lng.
+// Also handles:
+//   - Photo lookup in Google Drive
+//   - GPX-Auto: auto-renders a route polyline for each row
+//   - GPX (click): renders a route when the marker is clicked
+//
+// Multi-part routes work like this: a row with a GPX filename
+// but NO lat/lng skips pin creation and just draws the route.
+// This lets Northern Tier be split across multiple rows/files.
+// ═══════════════════════════════════════════════════════════
+
 async function loadSheetLayer(layer) {
   if (!layer.sheetId || !layer.tabName) return 0;
   try {
-    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+layer.sheetId+'/values/'+encodeURIComponent(layer.tabName)+'?key='+apiKey;
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'
+            + layer.sheetId + '/values/'
+            + encodeURIComponent(layer.tabName)
+            + '?key=' + apiKey;
     var resp = await fetch(url);
-    if (!resp.ok) { console.error('Sheet error '+layer.label+': '+resp.status); return 0; }
+    if (!resp.ok) { console.error('Sheet error ' + layer.label + ': ' + resp.status); return 0; }
     var data = await resp.json();
     var rows = data.values || [];
     if (rows.length < 2) return 0;
 
-    // Build header map (lowercase -> index)
+    // Build a header-name → column-index map (case-insensitive)
     var headers = {};
-    rows[0].forEach(function(h,i){ headers[h.trim().toLowerCase()] = i; });
+    rows[0].forEach(function(h, i) { headers[h.trim().toLowerCase()] = i; });
 
-var latCol = headers['latitude'];
-    var lngCol = headers['longitude'];
-    if (latCol===undefined||lngCol===undefined) { console.error('Missing lat/lng columns in '+layer.label); return 0; }
+    var latCol      = headers['latitude'];
+    var lngCol      = headers['longitude'];
+    if (latCol === undefined || lngCol === undefined) {
+      console.error('Missing Latitude/Longitude columns in ' + layer.label); return 0;
+    }
+    var photoCol    = headers['photo'];
+    var gpxAutoCol  = headers['gpx-auto'];   // auto-render route on load
+    var gpxClickCol = headers['gpx'];         // render route when marker is clicked
+    var gpxColorCol = headers['gpx color'] !== undefined ? headers['gpx color']
+                    : headers['route-color'] !== undefined ? headers['route-color'] : undefined;
 
-    var photoCol = headers['photo'];
-
-    // Detect GPX behavior from headers
-    var gpxAutoCol = headers['gpx-auto'];
-    var gpxClickCol = headers['gpx'];
-    var gpxColorCol = headers['gpx color'] !== undefined ? headers['gpx color'] :
-                      headers['route-color'] !== undefined ? headers['route-color'] : undefined;
-
-    var count = 0;
-    var promises = [];
-
-    // Initialize auto polylines array for this layer
+    // Initialise the polyline storage for this layer if it uses GPX-Auto
     if (gpxAutoCol !== undefined) autoPolylines[layer.id] = [];
 
-    for (var i=1; i<rows.length; i++) {
+    var count    = 0;
+    var promises = [];
+
+    for (var i = 1; i < rows.length; i++) {
       var row = rows[i];
-      var lat = parseFloat(row[latCol]);
-      var lng = parseFloat(row[lngCol]);
+
+      // ── Read GPX filename and color for THIS row BEFORE the no-pin check ──
+      // BUG FIX: previously these were read AFTER the continue statement, so
+      // continuation rows (no lat/lng) used stale values from the previous row.
+      var gpxFilename = '';
+      var gpxColor    = '#e8a020';
+      if (gpxAutoCol  !== undefined) gpxFilename = (row[gpxAutoCol]  || '').trim();
+      else if (gpxClickCol !== undefined) gpxFilename = (row[gpxClickCol] || '').trim();
+      if (gpxColorCol !== undefined) gpxColor = parseColor((row[gpxColorCol] || '').trim()) || '#e8a020';
+
+      var lat    = parseFloat(row[latCol]);
+      var lng    = parseFloat(row[lngCol]);
       var hasPin = !isNaN(lat) && !isNaN(lng);
 
-      // Read GPX filename and color from this row BEFORE the no-pin check
-      var gpxFilename = '';
-      var gpxColor = '#e8a020';
-
-      if (gpxAutoCol!==undefined) gpxFilename = (row[gpxAutoCol]||'').trim();
-      else if (gpxClickCol!==undefined) gpxFilename = (row[gpxClickCol]||'').trim();
-
-      if (gpxColorCol!==undefined) gpxColor = parseColor((row[gpxColorCol]||'').trim()) || '#e8a020';
-
-      // GPX-Auto with no pin: just render the route, no marker needed
+      // ── Continuation / no-pin row ──
+      // Rows with a GPX file but no lat/lng just draw a route segment — no marker.
+      // This is how multi-part routes (e.g. Northern Tier splits) work.
       if (!hasPin) {
-        if (gpxAutoCol!==undefined && gpxFilename) {
+        if (gpxAutoCol !== undefined && gpxFilename) {
           promises.push(fetchAndRenderGPX(gpxFilename, gpxColor, layer.id));
         }
-        continue;
+        continue; // no lat/lng → nothing else to do for this row
       }
 
+      // ── Normal row: has a pin location ──
+      // Build a plain object from the row, keyed by lowercased header name
       var record = {};
-      rows[0].forEach(function(h,idx){ record[h.trim().toLowerCase()] = (row[idx]||'').trim(); });
+      rows[0].forEach(function(h, idx) { record[h.trim().toLowerCase()] = (row[idx] || '').trim(); });
 
-      var photoFilename = (photoCol!==undefined) ? (row[photoCol]||'').trim() : '';
+      var photoFilename = (photoCol !== undefined) ? (row[photoCol] || '').trim() : '';
 
+      // Use an IIFE (Immediately Invoked Function Expression) to capture the
+      // loop variables by value — without this, all async callbacks would
+      // close over the SAME variable references (a classic JS loop-closure trap)
       (function(rec, la, ln, pf, gf, gc, hasAutoGpx, hasClickGpx) {
+        // Look up the photo in Drive (returns null if no photo filename given)
         var p = pf ? getFileId(pf, IMAGES_FOLDER_ID, imageCache) : Promise.resolve(null);
-        promises.push(p.then(function(photoId){
-          rec._photoId = photoId;
-          rec._gpxFile = gf;
-          rec._gpxColor = gc;
+        promises.push(p.then(function(photoId) {
+          // Attach GPX metadata to the record so the click handler can use it
+          rec._photoId     = photoId;
+          rec._gpxFile     = gf;
+          rec._gpxColor    = gc;
           rec._hasClickGpx = hasClickGpx;
 
           var marker = makeSheetMarker(rec, layer, la, ln, photoId, hasClickGpx, gc);
-          markers[layer.id].push({marker:marker, record:rec, layer:layer});
+          markers[layer.id].push({ marker: marker, record: rec, layer: layer });
           count++;
 
-          // GPX-Auto: fetch and render immediately
+          // For GPX-Auto layers, fetch and draw the route immediately
           if (hasAutoGpx && gf) {
             return fetchAndRenderGPX(gf, gc, layer.id);
           }
         }));
       })(record, lat, lng, photoFilename, gpxFilename, gpxColor,
-         gpxAutoCol!==undefined, gpxClickCol!==undefined);
+         gpxAutoCol !== undefined, gpxClickCol !== undefined);
     }
 
     await Promise.allSettled(promises);
     sheetLoaded[layer.id] = true;
-    var el=document.getElementById('cnt-'+layer.id); if(el) el.textContent=count||'';
+    var el = document.getElementById('cnt-' + layer.id); if (el) el.textContent = count || '';
     return count;
   } catch(e) {
-    console.error('loadSheetLayer error:', e);
-    return 0;
+    console.error('loadSheetLayer error:', e); return 0;
   }
 }
 
-// ── DRIVE FILE LOOKUP ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// GOOGLE DRIVE FILE LOOKUP
+// Searches a Drive folder by filename to get the file ID,
+// then caches the result to avoid redundant API calls.
+// ═══════════════════════════════════════════════════════════
+
 async function getFileId(filepath, folderId, cache) {
+  // Strip any path prefix — we only need the bare filename
   var filename = filepath.split('/').pop();
   if (!filename) return null;
-  if (cache[filename]) return cache[filename];
+  if (cache[filename]) return cache[filename]; // return cached ID if we've seen this file before
+
   try {
-    var q = encodeURIComponent('name="'+filename+'" and "'+folderId+'" in parents');
-    var url = 'https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name)&key='+apiKey;
+    var q   = encodeURIComponent('name="' + filename + '" and "' + folderId + '" in parents');
+    var url = 'https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name)&key=' + apiKey;
     var resp = await fetch(url);
     if (!resp.ok) return null;
     var data = await resp.json();
-    if (data.files&&data.files.length>0) {
-      cache[filename] = data.files[0].id;
+    if (data.files && data.files.length > 0) {
+      cache[filename] = data.files[0].id; // store in cache for next time
       return data.files[0].id;
     }
   } catch(e) { console.error('File lookup error:', e); }
   return null;
 }
 
-function getDriveImageUrl(fileId) { return 'https://drive.google.com/thumbnail?id='+fileId+'&sz=w300'; }
+// Build a Google Drive thumbnail URL from a file ID
+function getDriveImageUrl(fileId) {
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+}
 
-// ── GPX FETCH AND RENDER ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// GPX FETCH AND RENDER
+// Fetches a .gpx file from the GitHub Pages /routes/ folder
+// and draws it as a coloured polyline on the map.
+// ═══════════════════════════════════════════════════════════
+
 async function fetchAndRenderGPX(gpxFilename, color, layerId) {
   try {
     var filename = gpxFilename.split('/').pop();
-    if (!filename) { console.warn('No GPX filename:', gpxFilename); return; }
+    if (!filename) { console.warn('No GPX filename provided'); return; }
 
-    // Fetch GPX from GitHub Pages (same origin, no CORS issues)
-    var url = 'https://jumpin721-ux.github.io/routes/'+encodeURIComponent(filename);
+    // GPX files live in the /routes/ directory of the GitHub Pages site
+    var url  = 'https://jumpin721-ux.github.io/routes/' + encodeURIComponent(filename);
     var resp = await fetch(url);
     if (!resp.ok) { console.error('GPX fetch error:', resp.status, filename); return; }
     var gpxText = await resp.text();
 
     var pts = parseGPX(gpxText);
-    if (!pts.length) { console.warn('No points in GPX:', gpxFilename); return; }
+    if (!pts.length) { console.warn('No track points found in', gpxFilename); return; }
 
     var polyline = new google.maps.Polyline({
-      path: pts, strokeColor: color||'#e8a020',
-      strokeWeight: 4, strokeOpacity: 0.85, map: map
+      path:         pts,
+      strokeColor:  color || '#e8a020',
+      strokeWeight: 4,
+      strokeOpacity: 0.85,
+      map:          map
     });
 
-    // Store for toggle visibility
+    // Store the polyline so we can show/hide it when the layer is toggled
     if (layerId) {
       if (!autoPolylines[layerId]) autoPolylines[layerId] = [];
       autoPolylines[layerId].push(polyline);
@@ -669,72 +877,99 @@ async function fetchAndRenderGPX(gpxFilename, color, layerId) {
   } catch(e) { console.error('fetchAndRenderGPX error:', e); }
 }
 
+// Renders a GPX route in response to a marker click (Bike Rides layer).
+// Clears any previously click-rendered route first.
 async function renderClickGPX(gpxFilename, color) {
-  // Clear any existing click polyline
   if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
   try {
     var filename = gpxFilename.split('/').pop();
     if (!filename) return;
-    var url = 'https://jumpin721-ux.github.io/routes/'+encodeURIComponent(filename);
+    var url  = 'https://jumpin721-ux.github.io/routes/' + encodeURIComponent(filename);
     var resp = await fetch(url);
     if (!resp.ok) return;
-    var gpxText = await resp.text();
-    var pts = parseGPX(gpxText);
+    var pts  = parseGPX(await resp.text());
     if (!pts.length) return;
     clickPolyline = new google.maps.Polyline({
-      path: pts, strokeColor: color||'#e8a020',
+      path: pts, strokeColor: color || '#e8a020',
       strokeWeight: 4, strokeOpacity: 0.85, map: map
     });
   } catch(e) { console.error('renderClickGPX error:', e); }
 }
 
+// Parse a GPX XML string and return an array of {lat, lng} objects.
+// GPX files can contain three kinds of point elements:
+//   trkpt — track points recorded by a GPS device while riding (most common)
+//   rtept — route points in a planned route
+//   wpt   — waypoints / named POIs (e.g. tunnel entrances, cafes)
+// We ONLY use trkpt and rtept because they form the continuous route line.
+// wpt points are scattered landmarks; connecting them produces the wrong
+// result — a spider-web of straight lines between POIs instead of the route.
 function parseGPX(text) {
   var xml = new DOMParser().parseFromString(text, 'text/xml');
-  // Use track points first, then route points — never wpt (those are POIs/waypoints, not route lines)
+
+  // Try track points first (recorded rides), fall back to route points (planned routes)
   var pts = Array.from(xml.querySelectorAll('trkpt'));
   if (!pts.length) pts = Array.from(xml.querySelectorAll('rtept'));
+  // Note: wpt (waypoints) intentionally excluded — they are POIs, not route geometry
+
   return pts
-    .map(function(p){ return {lat:parseFloat(p.getAttribute('lat')),lng:parseFloat(p.getAttribute('lon'))}; })
-    .filter(function(p){ return !isNaN(p.lat)&&!isNaN(p.lng); });
+    .map(function(p) { return { lat: parseFloat(p.getAttribute('lat')), lng: parseFloat(p.getAttribute('lon')) }; })
+    .filter(function(p) { return !isNaN(p.lat) && !isNaN(p.lng); });
 }
 
+// Remove any click-rendered GPX polyline from the map
 function clearClickGPX() {
   if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
 }
 
-// ── FIELD CONCATENATION ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// FIELD CONCATENATION
+// Config sheet cells can specify "City+State+Zip" to combine
+// multiple columns into one displayed value.
+// ═══════════════════════════════════════════════════════════
+
 function resolveField(fieldSpec, record) {
   if (!fieldSpec) return '';
-  var parts = fieldSpec.split('+');
-  var values = parts.map(function(p){ return (record[p.trim().toLowerCase()]||'').trim(); }).filter(Boolean);
+  var parts  = fieldSpec.split('+');
+  var values = parts.map(function(p) { return (record[p.trim().toLowerCase()] || '').trim(); }).filter(Boolean);
   if (!values.length) return '';
-  if (parts.length===3) return values[0]+', '+values[1]+' '+values[2];
-  if (parts.length===2) return values[0]+', '+values[1];
+  if (parts.length === 3) return values[0] + ', ' + values[1] + ' ' + values[2]; // City, State Zip
+  if (parts.length === 2) return values[0] + ', ' + values[1];
   return values[0];
 }
 
-// ── MARKERS ───────────────────────────────────────────────
-function makeMarker(place,layer,lat,lng){
-  var m=new google.maps.Marker({
-    position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
-    icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
+// ═══════════════════════════════════════════════════════════
+// MARKERS
+// ═══════════════════════════════════════════════════════════
+
+// Create a coloured circle marker for a Places API result
+function makeMarker(place, layer, lat, lng) {
+  var m = new google.maps.Marker({
+    position: { lat: lat, lng: lng },
+    map:      enabled[layer.id] ? map : null,
+    title:    '',
+    icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: layer.color, fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1.5, scale: 8 }
   });
-  m.addListener('mouseover',function(e){showTooltip(place,layer,e,'places');});
-  m.addListener('mouseout',scheduleHide);
-  m.addListener('click',function(){showPopup(place,layer,'places',lat,lng,null);});
+  m.addListener('mouseover', function(e) { showTooltip(place, layer, e, 'places'); });
+  m.addListener('mouseout',  scheduleHide);
+  m.addListener('click',     function() { showPopup(place, layer, 'places', lat, lng, null); });
   return m;
 }
 
-function makeSheetMarker(record,layer,lat,lng,photoId,hasClickGpx,gpxColor){
-  var m=new google.maps.Marker({
-    position:{lat:lat,lng:lng}, map:enabled[layer.id]?map:null, title:'',
-    icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:layer.color,fillOpacity:0.9,strokeColor:'#ffffff',strokeWeight:1.5,scale:8}
+// Create a coloured circle marker for a Google Sheet row.
+// hasClickGpx and gpxColor are used to render a route on click.
+function makeSheetMarker(record, layer, lat, lng, photoId, hasClickGpx, gpxColor) {
+  var m = new google.maps.Marker({
+    position: { lat: lat, lng: lng },
+    map:      enabled[layer.id] ? map : null,
+    title:    '',
+    icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: layer.color, fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1.5, scale: 8 }
   });
-  m.addListener('mouseover',function(e){showTooltip(record,layer,e,'sheet');});
-  m.addListener('mouseout',scheduleHide);
-  m.addListener('click',function(){
-    showPopup(record,layer,'sheet',lat,lng,photoId);
-    // If click-GPX layer, render the route
+  m.addListener('mouseover', function(e) { showTooltip(record, layer, e, 'sheet'); });
+  m.addListener('mouseout',  scheduleHide);
+  m.addListener('click', function() {
+    showPopup(record, layer, 'sheet', lat, lng, photoId);
+    // For click-GPX layers (Bike Rides), draw the route when the pin is clicked
     if (hasClickGpx && record._gpxFile) {
       renderClickGPX(record._gpxFile, record._gpxColor);
     }
@@ -742,164 +977,225 @@ function makeSheetMarker(record,layer,lat,lng,photoId,hasClickGpx,gpxColor){
   return m;
 }
 
-// ── TOOLTIP ───────────────────────────────────────────────
-function showTooltip(data,layer,event,dtype){
-  var tt=document.getElementById('tooltip');
-  var name = dtype==='places'
-    ? (data.displayName&&data.displayName.text||'Unknown')
-    : resolveField(layer.hover[0]||'name', data);
-  document.getElementById('tt-name').textContent=name;
+// ═══════════════════════════════════════════════════════════
+// TOOLTIP (hover card)
+// ═══════════════════════════════════════════════════════════
 
-  var lines=[];
-  if (dtype==='places') {
-    if(data.rating){ lines.push('★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating))+' '+data.rating.toFixed(1)+(data.userRatingCount?' ('+data.userRatingCount.toLocaleString()+')':'')); }
-    if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) lines.push(data.primaryTypeDisplayName.text);
-    if(data.priceLevel) lines.push(priceStr(data.priceLevel));
+function showTooltip(data, layer, event, dtype) {
+  var tt   = document.getElementById('tooltip');
+  var name = dtype === 'places'
+    ? (data.displayName && data.displayName.text || 'Unknown')
+    : resolveField(layer.hover[0] || 'name', data);
+  document.getElementById('tt-name').textContent = name;
+
+  // Build the secondary info line (rating, type, price for Places; hover fields for Sheet)
+  var lines = [];
+  if (dtype === 'places') {
+    if (data.rating) {
+      lines.push('★'.repeat(Math.round(data.rating)) + '☆'.repeat(5-Math.round(data.rating))
+               + ' ' + data.rating.toFixed(1)
+               + (data.userRatingCount ? ' (' + data.userRatingCount.toLocaleString() + ')' : ''));
+    }
+    if (data.primaryTypeDisplayName && data.primaryTypeDisplayName.text) lines.push(data.primaryTypeDisplayName.text);
+    if (data.priceLevel) lines.push(priceStr(data.priceLevel));
   } else {
-    for (var i=1; i<layer.hover.length; i++) {
-      var val=resolveField(layer.hover[i],data); if(val) lines.push(val);
+    // For sheet layers, hover fields 1..n are the secondary info (field 0 is the name)
+    for (var i = 1; i < layer.hover.length; i++) {
+      var val = resolveField(layer.hover[i], data); if (val) lines.push(val);
     }
   }
-  document.getElementById('tt-meta').textContent=lines.join(' · ');
+  document.getElementById('tt-meta').textContent = lines.join(' · ');
 
-  var lat = dtype==='places' ? (data.location&&data.location.latitude) : null;
-  var lng = dtype==='places' ? (data.location&&data.location.longitude) : null;
-  var gmUrl = dtype==='places' ? gmapsUrl(data) : (lat ? 'https://www.google.com/maps?q='+lat+','+lng : 'https://www.google.com/maps');
-  document.getElementById('tt-link').href=gmUrl;
+  // Build the "Open in Google Maps" link for the tooltip
+  document.getElementById('tt-link').href = dtype === 'places'
+    ? gmapsUrl(data)
+    : (data.latitude && data.longitude ? 'https://www.google.com/maps?q=' + data.latitude + ',' + data.longitude : 'https://www.google.com/maps');
 
+  // Position the tooltip near the cursor
   clearTimeout(_hideTimer);
-  var wrap=document.getElementById('map-wrap'),rect=wrap.getBoundingClientRect();
-  var x=(event.domEvent&&event.domEvent.clientX||0)-rect.left;
-  var y=(event.domEvent&&event.domEvent.clientY||0)-rect.top;
-  tt.style.left=(x+8)+'px'; tt.style.top=(y-4)+'px'; tt.style.display='block';
+  var wrap = document.getElementById('map-wrap'), rect = wrap.getBoundingClientRect();
+  var x = (event.domEvent && event.domEvent.clientX || 0) - rect.left;
+  var y = (event.domEvent && event.domEvent.clientY || 0) - rect.top;
+  tt.style.left = (x + 8) + 'px'; tt.style.top = (y - 4) + 'px'; tt.style.display = 'block';
 }
-function scheduleHide(){ _hideTimer=setTimeout(function(){ document.getElementById('tooltip').style.display='none'; },300); }
-function hideTooltip(){ clearTimeout(_hideTimer); document.getElementById('tooltip').style.display='none'; }
 
-// ── POPUP ─────────────────────────────────────────────────
-function showPopup(data,layer,dtype,lat,lng,photoId){
+// Delay hiding the tooltip slightly so the user can move the mouse onto it
+function scheduleHide() { _hideTimer = setTimeout(function() { document.getElementById('tooltip').style.display = 'none'; }, 300); }
+function hideTooltip()  { clearTimeout(_hideTimer); document.getElementById('tooltip').style.display = 'none'; }
+
+// ═══════════════════════════════════════════════════════════
+// POPUP (click card)
+// ═══════════════════════════════════════════════════════════
+
+function showPopup(data, layer, dtype, lat, lng, photoId) {
   hideTooltip();
   document.getElementById('popup').classList.add('show');
-  var tag=document.getElementById('popup-tag'); tag.textContent=layer.label; tag.style.background=layer.color;
 
-  var name = dtype==='places'
-    ? (data.displayName&&data.displayName.text||'Unknown')
-    : resolveField('name',data);
-  document.getElementById('popup-name').textContent=name;
+  // Layer label badge (coloured pill at the top of the card)
+  var tag = document.getElementById('popup-tag'); tag.textContent = layer.label; tag.style.background = layer.color;
 
-  // Rating
-  var rrow=document.getElementById('popup-rating');
-  if(dtype==='places'&&data.rating){
-    rrow.style.display='flex';
-    document.getElementById('popup-stars').textContent='★'.repeat(Math.round(data.rating))+'☆'.repeat(5-Math.round(data.rating));
-    document.getElementById('popup-rnum').textContent=data.rating.toFixed(1);
-    document.getElementById('popup-rcnt').textContent=data.userRatingCount?'('+data.userRatingCount.toLocaleString()+' reviews)':'';
-  } else { rrow.style.display='none'; }
+  // Title
+  var name = dtype === 'places'
+    ? (data.displayName && data.displayName.text || 'Unknown')
+    : resolveField('name', data);
+  document.getElementById('popup-name').textContent = name;
 
-  // Photo
-  var photo=document.getElementById('popup-photo'),ph=document.getElementById('popup-placeholder');
-  if(dtype==='places'&&data.photos&&data.photos.length){
-    photo.src='https://places.googleapis.com/v1/'+data.photos[0].name+'/media?maxHeightPx=300&key='+apiKey;
-    photo.style.display='block'; ph.style.display='none';
-  } else if(dtype==='sheet'&&photoId){
-    photo.src=getDriveImageUrl(photoId);
-    photo.style.display='block'; ph.style.display='none';
-    photo.onerror=function(){ photo.style.display='none'; ph.style.display='flex'; ph.textContent='🚴'; };
+  // Star rating (Places API only)
+  var rrow = document.getElementById('popup-rating');
+  if (dtype === 'places' && data.rating) {
+    rrow.style.display = 'flex';
+    document.getElementById('popup-stars').textContent = '★'.repeat(Math.round(data.rating)) + '☆'.repeat(5-Math.round(data.rating));
+    document.getElementById('popup-rnum').textContent  = data.rating.toFixed(1);
+    document.getElementById('popup-rcnt').textContent  = data.userRatingCount ? '(' + data.userRatingCount.toLocaleString() + ' reviews)' : '';
+  } else { rrow.style.display = 'none'; }
+
+  // Photo — Places API photo, Drive photo, or placeholder emoji
+  var photo = document.getElementById('popup-photo'), ph = document.getElementById('popup-placeholder');
+  if (dtype === 'places' && data.photos && data.photos.length) {
+    photo.src = 'https://places.googleapis.com/v1/' + data.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
+    photo.style.display = 'block'; ph.style.display = 'none';
+  } else if (dtype === 'sheet' && photoId) {
+    photo.src = getDriveImageUrl(photoId);
+    photo.style.display = 'block'; ph.style.display = 'none';
+    photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '🚴'; };
   } else {
-    photo.style.display='none'; ph.style.display='flex';
-    ph.textContent = dtype==='sheet' ? '🚴' : '📍';
+    photo.style.display = 'none'; ph.style.display = 'flex';
+    ph.textContent = dtype === 'sheet' ? '🚴' : '📍';
   }
 
-  // Fields
-  var fields=document.getElementById('popup-fields'); fields.innerHTML='';
-  var fieldIcons={'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐'};
+  // Detail fields
+  var fields = document.getElementById('popup-fields'); fields.innerHTML = '';
+  // Emoji icons keyed by lowercased field spec
+  var fieldIcons = { 'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐' };
 
-  function addField(icon,text,isLink){
-    if(!text) return;
-    var row=document.createElement('div'); row.className='popup-field';
-    var ic=document.createElement('div'); ic.className='popup-icon'; ic.textContent=icon;
-    var tx=document.createElement('div'); tx.className='popup-text';
-    if(isLink){
-      var a=document.createElement('a');
-      // Handle both full URLs and plain text link labels
-      if(text.match(/^https?:\/\//)){a.href=text;a.textContent=text.replace(/^https?:\/\//,'').replace(/\/$/,'');}
-      else{a.href='#';a.textContent=text;}
-      a.target='_blank'; tx.appendChild(a);
-    } else { tx.textContent=text; }
+  function addField(icon, text, isLink) {
+    if (!text) return;
+    var row = document.createElement('div'); row.className = 'popup-field';
+    var ic  = document.createElement('div'); ic.className  = 'popup-icon'; ic.textContent = icon;
+    var tx  = document.createElement('div'); tx.className  = 'popup-text';
+    if (isLink) {
+      var a = document.createElement('a');
+      a.href      = text.match(/^https?:\/\//) ? text : '#';
+      a.textContent = text.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      a.target    = '_blank';
+      tx.appendChild(a);
+    } else { tx.textContent = text; }
     row.appendChild(ic); row.appendChild(tx); fields.appendChild(row);
   }
 
-  if(dtype==='places'){
-    if(data.primaryTypeDisplayName&&data.primaryTypeDisplayName.text) addField('🏷',data.primaryTypeDisplayName.text);
-    if(data.editorialSummary&&data.editorialSummary.text) addField('📝',data.editorialSummary.text);
-    if(data.priceLevel) addField('💰',priceStr(data.priceLevel));
-    if(data.formattedAddress) addField('📍',data.formattedAddress);
-    if(data.regularOpeningHours&&data.regularOpeningHours.weekdayDescriptions){
-      var d=new Date().getDay(),idx=d===0?6:d-1;
-      var h=data.regularOpeningHours.weekdayDescriptions[idx]; if(h) addField('🕐',h);
+  if (dtype === 'places') {
+    // Standard Places API fields
+    if (data.primaryTypeDisplayName && data.primaryTypeDisplayName.text) addField('🏷', data.primaryTypeDisplayName.text);
+    if (data.editorialSummary && data.editorialSummary.text)             addField('📝', data.editorialSummary.text);
+    if (data.priceLevel)                                                  addField('💰', priceStr(data.priceLevel));
+    if (data.formattedAddress)                                           addField('📍', data.formattedAddress);
+    if (data.regularOpeningHours && data.regularOpeningHours.weekdayDescriptions) {
+      var d = new Date().getDay(), idx = d === 0 ? 6 : d - 1; // Sunday=0 in JS, Mon=0 in Places API
+      var h = data.regularOpeningHours.weekdayDescriptions[idx]; if (h) addField('🕐', h);
     }
-    if(data.websiteUri) addField('🌐',data.websiteUri,true);
-    if(data.nationalPhoneNumber) addField('📞',data.nationalPhoneNumber);
+    if (data.websiteUri)           addField('🌐', data.websiteUri,         true);
+    if (data.nationalPhoneNumber)  addField('📞', data.nationalPhoneNumber);
   } else {
-    layer.click.forEach(function(fieldSpec){
-      var key=fieldSpec.toLowerCase().replace(/\s+/g,'');
-      if(key==='photo'||key==='name') return;
-      var val=resolveField(fieldSpec,data);
-      if(!val) return;
-      var isLink=(key==='website'||key==='link'||key==='email');
-      var icon=fieldIcons[fieldSpec.toLowerCase()]||fieldIcons[key]||'•';
-      addField(icon,val,isLink);
+    // Sheet layer fields — driven by the click columns in the config sheet
+    layer.click.forEach(function(fieldSpec) {
+      var key    = fieldSpec.toLowerCase().replace(/\s+/g, '');
+      if (key === 'photo' || key === 'name') return; // handled above
+      var val    = resolveField(fieldSpec, data);
+      if (!val) return;
+      var isLink = (key === 'website' || key === 'link' || key === 'email');
+      var icon   = fieldIcons[fieldSpec.toLowerCase()] || fieldIcons[key] || '•';
+      addField(icon, val, isLink);
     });
   }
 
-  // Google Maps link
-  var gmUrl = dtype==='places' ? gmapsUrl(data) : 'https://www.google.com/maps?q='+lat+','+lng;
-  document.getElementById('popup-gmaps').href=gmUrl;
+  // Open in Google Maps button at the bottom of the card
+  // For Places API results, use place_id URL for the full Place card with reviews/photos.
+  // For Sheet layers, fall back to lat,lng coordinates.
+  document.getElementById('popup-gmaps').href = dtype === 'places' ? gmapsUrl(data) : 'https://www.google.com/maps?q=' + lat + ',' + lng;
 }
 
-function closePopup(){
+function closePopup() {
   document.getElementById('popup').classList.remove('show');
-  clearClickGPX(); // clear any click-rendered route when popup closes
+  clearClickGPX(); // also hide any click-rendered route
 }
 
-// ── HELPERS ───────────────────────────────────────────────
-function gmapsUrl(p){ return p.id?'https://www.google.com/maps/place/?q=place_id:'+p.id:(p.location?'https://www.google.com/maps?q='+p.location.latitude+','+p.location.longitude:'https://www.google.com/maps'); }
-function priceStr(l){ return {'PRICE_LEVEL_FREE':'Free','PRICE_LEVEL_INEXPENSIVE':'$','PRICE_LEVEL_MODERATE':'$$','PRICE_LEVEL_EXPENSIVE':'$$$','PRICE_LEVEL_VERY_EXPENSIVE':'$$$$'}[l]||''; }
-function setStatus(h){ document.getElementById('layers-status').textContent=h; }
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
 
-// ── ROUTE PLANNER ─────────────────────────────────────────
-function toggleRoute(){ routeOpen=!routeOpen; document.getElementById('route-panel').style.display=routeOpen?'block':'none'; document.getElementById('route-toggle').style.display=routeOpen?'none':'block'; }
-function showRoute(){
-  var s=document.getElementById('r-start').value.trim(),e=document.getElementById('r-end').value.trim();
-  if(!s||!e){alert('Enter start and end points.');return;}
-  var ds=new google.maps.DirectionsService();
-  ds.route({origin:s,destination:e,travelMode:google.maps.TravelMode[document.getElementById('r-mode').value]},function(res,status){
-    if(status==='OK'){clearClickGPX();routeRenderer.setDirections(res);}
-    else alert('Route error: '+status);
-  });
+// Build the Google Maps URL for a Places API result.
+// place_id: format opens the full Google Maps Place card (name, photos, reviews, hours).
+// lat,lng format drops a generic pin with no extra information.
+function gmapsUrl(p) {
+  return p.id
+    ? 'https://www.google.com/maps/place/?q=place_id:' + p.id
+    : (p.location ? 'https://www.google.com/maps?q=' + p.location.latitude + ',' + p.location.longitude : 'https://www.google.com/maps');
 }
-function clearRoute(){ routeRenderer.setDirections({routes:[]}); clearClickGPX(); }
-function loadGPXFile(e){
-  var file=e.target.files[0]; if(!file) return;
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    var pts=parseGPX(ev.target.result);
-    if(!pts.length){alert('No track points found.');return;}
+
+// Convert Places API price level enum to a dollar-sign string
+function priceStr(l) {
+  return { PRICE_LEVEL_FREE:'Free', PRICE_LEVEL_INEXPENSIVE:'$', PRICE_LEVEL_MODERATE:'$$', PRICE_LEVEL_EXPENSIVE:'$$$', PRICE_LEVEL_VERY_EXPENSIVE:'$$$$' }[l] || '';
+}
+
+function setStatus(h) { document.getElementById('layers-status').textContent = h; }
+
+// ═══════════════════════════════════════════════════════════
+// ROUTE PLANNER (turn-by-turn driving/cycling/walking)
+// Uses the Google Maps DirectionsService, which is separate
+// from the Places API and works with street addresses.
+// ═══════════════════════════════════════════════════════════
+
+function toggleRoute() {
+  routeOpen = !routeOpen;
+  document.getElementById('route-panel').style.display  = routeOpen ? 'block' : 'none';
+  document.getElementById('route-toggle').style.display = routeOpen ? 'none'  : 'block';
+}
+
+function showRoute() {
+  var s = document.getElementById('r-start').value.trim();
+  var e = document.getElementById('r-end').value.trim();
+  if (!s || !e) { alert('Enter start and end points.'); return; }
+  var ds = new google.maps.DirectionsService();
+  ds.route(
+    { origin: s, destination: e, travelMode: google.maps.TravelMode[document.getElementById('r-mode').value] },
+    function(res, status) {
+      if (status === 'OK') { clearClickGPX(); routeRenderer.setDirections(res); }
+      else alert('Route error: ' + status);
+    }
+  );
+}
+
+function clearRoute() { routeRenderer.setDirections({ routes: [] }); clearClickGPX(); }
+
+// Allow the user to upload a local GPX file and display it on the map
+function loadGPXFile(e) {
+  var file = e.target.files[0]; if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var pts = parseGPX(ev.target.result);
+    if (!pts.length) { alert('No track points found in this GPX file.'); return; }
     clearClickGPX();
-    routeRenderer.setDirections({routes:[]});
-    clickPolyline=new google.maps.Polyline({path:pts,strokeColor:'#e8a020',strokeWeight:4,strokeOpacity:0.85,map:map});
-    var b=new google.maps.LatLngBounds(); pts.forEach(function(p){b.extend(p);}); map.fitBounds(b);
-    setStatus('GPX loaded: '+pts.length+' points from "'+file.name+'"');
+    routeRenderer.setDirections({ routes: [] });
+    clickPolyline = new google.maps.Polyline({ path: pts, strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.85, map: map });
+    var b = new google.maps.LatLngBounds();
+    pts.forEach(function(p) { b.extend(p); });
+    map.fitBounds(b);
+    setStatus('GPX loaded: ' + pts.length + ' points from "' + file.name + '"');
   };
   reader.readAsText(file);
 }
 
-// ── MAP STYLES ────────────────────────────────────────────
-function mapStyles(){return[
-  {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-  {featureType:'poi.business',stylers:[{visibility:'off'}]},
-  {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]}
-];}
+// ═══════════════════════════════════════════════════════════
+// MAP STYLES
+// Suppresses default Google Maps POI icons and transit icons
+// so our own layer markers are not competing with clutter.
+// ═══════════════════════════════════════════════════════════
+
+function mapStyles() { return [
+  { featureType: 'poi',         elementType: 'labels',      stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.business',                            stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',     elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }
+]; }
 </script>
 </body>
 </html>
