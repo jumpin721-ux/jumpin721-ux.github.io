@@ -14,8 +14,6 @@
     #header h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #e8a020; text-transform: uppercase; }
     .subtitle { font-size: 12px; color: #8896aa; letter-spacing: 2px; text-transform: uppercase; }
     .spacer { flex: 1; }
-    #load-btn { background: #e8a020; color: #0f1420; border: none; padding: 6px 16px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
-    #load-btn:hover { opacity: 0.85; }
 
     /* MAIN */
     #main { display: flex; flex: 1; overflow: hidden; position: relative; }
@@ -23,9 +21,6 @@
     #map { width: 100%; height: 100%; }
 
     /* SPLASH */
-    #splash { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #e8eaf0; color: #666; gap: 12px; text-align: center; padding: 40px; z-index: 10; }
-    #splash h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; color: #e8a020; letter-spacing: 2px; text-transform: uppercase; }
-    #splash p { font-size: 14px; line-height: 1.6; max-width: 400px; }
 
     /* LOADING OVERLAY */
     #config-loading { position: absolute; inset: 0; background: rgba(255,255,255,0.85); display: none; align-items: center; justify-content: center; z-index: 600; flex-direction: column; gap: 12px; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #555; }
@@ -127,17 +122,21 @@
 
 <div id="header">
   <h1>🗺 Trip Planner</h1>
-  <span class="subtitle">Jim's Adventure Map</span>
+  <span class="subtitle" id="mode-subtitle">Jim's Adventure Map</span>
+  <script>
+    // Inline so it runs before the rest of the page paints —
+    // avoids a flicker where the subtitle briefly shows the wrong text
+    if (new URLSearchParams(window.location.search).get('private') === 'true') {
+      document.getElementById('mode-subtitle').textContent = 'Private Mode';
+      document.getElementById('mode-subtitle').style.color = '#e8a020';
+    }
+  </script>
   <div class="spacer"></div>
-  <button id="load-btn">Load Map</button>
 </div>
 
 <div id="main">
   <div id="map-wrap">
-    <div id="splash">
-      <h2>Ready to Explore</h2>
-      <p>Click <strong>Load Map</strong> to begin.</p>
-    </div>
+
     <div id="map"></div>
     <div id="config-loading"><div class="big-spin"></div><span id="loading-msg">Loading layer config…</span></div>
 
@@ -148,7 +147,7 @@
         <span class="btn-arrow">▼</span>
       </button>
       <div id="layers-dropdown">
-        <div id="layers-header"><span>Map Layers</span><button id="toggle-all">All Off</button></div>
+        <div id="layers-header"><span>Map Layers</span><button id="toggle-all">All On</button></div>
         <div id="layers-list"></div>
         <div id="layers-status">Load map to begin.</div>
       </div>
@@ -211,6 +210,11 @@
 // someone who copies the key can only use it from this same URL.
 const API_KEY = 'AIzaSyBuzcElvnGmLUbRa3LKDhEliiEHkGFYc_s';
 
+// Private mode: Sheet layers (personal data) are only loaded when
+// the URL contains ?private=true  e.g. https://jumpin721-ux.github.io?private=true
+// The default public URL shows Places API layers only.
+const IS_PRIVATE = new URLSearchParams(window.location.search).get('private') === 'true';
+
 // Google Sheet that holds the layer configuration
 // (which layers exist, what type, what color, which data tab, etc.)
 const LAYERS_SHEET_ID = '15rXYK5K1PCI-iN50fPHjCX8RkYB0Ka90phN55ikGZEU';
@@ -254,20 +258,18 @@ var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
 // BOOT — wire up button/event listeners before the map loads
 // ═══════════════════════════════════════════════════════════
 
-// The Load Map button kicks everything off
-document.getElementById('load-btn').addEventListener('click', function() {
-  // Avoid re-loading Google Maps JS if it is already on the page
-  if (window.google && window.google.maps) { initMap(); return; }
-  setStatus('Loading Google Maps…');
+// Auto-load Google Maps as soon as the page is ready — no button needed.
+// The API key is embedded, so there's nothing for the user to provide first.
+(function() {
   var s = document.createElement('script');
   // 'libraries=routes' loads the modern Routes library (needed by DirectionsService)
   // 'callback=initMap' tells Google Maps to call our initMap() when ready
   // 'loading=async' prevents the script from blocking page render
   s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&libraries=routes&callback=initMap&loading=async';
   s.async = true;
-  s.onerror = function(){ setStatus('Failed to load Google Maps. Check the API key.'); };
+  s.onerror = function(){ console.error('Failed to load Google Maps API.'); };
   document.head.appendChild(s);
-});
+})();
 
 // Wire up the rest of the UI controls
 document.getElementById('search-btn').addEventListener('click',  searchArea);
@@ -283,9 +285,6 @@ document.getElementById('popup-close').addEventListener('click', closePopup);
 // ═══════════════════════════════════════════════════════════
 
 window.initMap = async function() {
-  // Hide the splash screen now that we have a map to show
-  document.getElementById('splash').style.display = 'none';
-
   // Restore the last map position from localStorage, or default to Dayton OH
   var saved = getSaved();
 
@@ -321,10 +320,6 @@ window.initMap = async function() {
     suppressMarkers: false,
     polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
   });
-
-  // Update the Load button so the user knows it worked
-  document.getElementById('load-btn').disabled    = true;
-  document.getElementById('load-btn').textContent = 'Loaded ✓';
 
   // Fetch the layer configuration from Google Sheets and build the panel
   showLoadingMsg('Loading layer config…');
@@ -408,7 +403,10 @@ async function loadLayerConfig() {
       else LAYERS.push(layer);
 
     } else if (layerType === 'Google Sheet') {
-      // Sheet layers read pin data (lat/lng/name/etc.) from a separate Google Sheet tab
+      // Sheet layers contain personal data (People, Travel, etc.).
+      // In public mode (default), these are skipped entirely so visitors
+      // only see the Places API layers. Pass ?private=true to enable them.
+      if (!IS_PRIVATE) continue;
       var slayer = { id: slugify(layerName), type: 'sheet', label: layerName, color: color, sheetId: sheetId, tabName: tabName, hover: hover, click: click };
       if (groupName && currentGroup && currentGroup.label === groupName) currentGroup.children.push(slayer);
       else LAYERS.push(slayer);
@@ -480,7 +478,7 @@ function buildPanel() {
       var wrap = document.createElement('div');
       var hdr  = document.createElement('div'); hdr.className = 'group-hdr';
       var chev = document.createElement('span'); chev.className = 'chevron'; chev.textContent = '▾';
-      var gcb  = document.createElement('input'); gcb.type = 'checkbox'; gcb.className = 'group-cb'; gcb.checked = true;
+      var gcb  = document.createElement('input'); gcb.type = 'checkbox'; gcb.className = 'group-cb'; gcb.checked = false;
       var lbl  = document.createElement('span'); lbl.className = 'group-lbl'; lbl.textContent = item.label;
       hdr.appendChild(chev); hdr.appendChild(gcb); hdr.appendChild(lbl);
       var kids = document.createElement('div'); kids.className = 'group-kids';
@@ -516,14 +514,16 @@ function buildPanel() {
 
 // Creates a single layer row (checkbox + color dot + label + count badge)
 function makeLayerRow(layer, isChild) {
-  enabled[layer.id] = true;
+  // Layers start OFF by default — the user enables what they want,
+  // then clicks Search This Area to load results.
+  enabled[layer.id] = false;
   markers[layer.id] = [];
 
   var row = document.createElement('div');
   row.className  = 'layer-row' + (isChild ? '' : ' ungrouped');
   row.dataset.id = layer.id;
 
-  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'layer-cb'; cb.checked = true;
+  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'layer-cb'; cb.checked = false;
   cb.addEventListener('change', function() {
     toggleLayer(layer.id, cb.checked);
     // If the user re-enables a sheet layer that was never loaded, load it now
@@ -551,18 +551,18 @@ function setVisible(id, on)   { (markers[id] || []).forEach(function(m) { m.mark
 // Toggle all layers on or off at once (the "All Off / All On" button)
 function toggleAll() {
   var btn   = document.getElementById('toggle-all');
-  var allOn = btn.textContent === 'All Off';
-  btn.textContent = allOn ? 'All On' : 'All Off';
+  var allOn = btn.textContent === 'All On';
+  btn.textContent = allOn ? 'All Off' : 'All On';
 
   getAllLeaf().forEach(function(l) {
-    enabled[l.id] = !allOn;
+    enabled[l.id] = allOn;
     setVisible(l.id, !allOn);
     var cb = document.querySelector('[data-id="' + l.id + '"] .layer-cb');
-    if (cb) cb.checked = !allOn;
-    if (autoPolylines[l.id]) autoPolylines[l.id].forEach(function(p) { p.setVisible(!allOn); });
+    if (cb) cb.checked = allOn;
+    if (autoPolylines[l.id]) autoPolylines[l.id].forEach(function(p) { p.setVisible(allOn); });
   });
   // Also sync the group-level checkboxes
-  document.querySelectorAll('.group-cb').forEach(function(gcb) { gcb.checked = !allOn; });
+  document.querySelectorAll('.group-cb').forEach(function(gcb) { gcb.checked = allOn; });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -909,6 +909,7 @@ function parseGPX(text) {
 
   // Try track points first (recorded rides), fall back to route points (planned routes)
   var pts = Array.from(xml.querySelectorAll('trkpt'));
+  if (!pts.length) pts = Array.from(xml.querySelectorAll('rtept'));
   // Note: wpt (waypoints) intentionally excluded — they are POIs, not route geometry
 
   return pts
