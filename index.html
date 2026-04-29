@@ -723,6 +723,7 @@ async function loadSheetLayer(layer) {
     var headers = {};
     rows[0].forEach(function(h, i) { headers[h.trim().toLowerCase()] = i; });
 
+    // Accept both full names ('Latitude'/'Longitude') and short names ('Lat'/'Long')
     var latCol = headers['latitude'] !== undefined ? headers['latitude'] : headers['lat'];
     var lngCol = headers['longitude'] !== undefined ? headers['longitude'] : headers['long'];
     if (latCol === undefined || lngCol === undefined) {
@@ -1049,18 +1050,51 @@ function showPopup(data, layer, dtype, lat, lng, photoId) {
     document.getElementById('popup-rcnt').textContent  = data.userRatingCount ? '(' + data.userRatingCount.toLocaleString() + ' reviews)' : '';
   } else { rrow.style.display = 'none'; }
 
-  // Photo — Places API photo, Drive photo, or placeholder emoji
+  // Extract PlaceID early so it's available to both the photo block and the Maps URL block.
+  // The cell may contain a HYPERLINK formula — extract just the ChIJ... ID portion.
+  var rawPlaceId   = (data['placeid'] || data['place_id'] || data['PlaceID'] || '').toString().trim();
+  var placeIdMatch = rawPlaceId.match(/place_id:([^"&]+)/);
+  var cleanPlaceId = placeIdMatch ? placeIdMatch[1] : rawPlaceId;
+
+  // Photo — three possible sources depending on layer type:
+  //   1. Places API layers: photo comes directly in the API response
+  //   2. Sheet layers with a Drive photo filename: look up in Drive (e.g. People layer)
+  //   3. Sheet layers with a PlaceID and 'Photo' in click fields: fetch from Places API by ID
+  //   4. Fallback: show a placeholder emoji
   var photo = document.getElementById('popup-photo'), ph = document.getElementById('popup-placeholder');
+  var wantsPhoto = layer.click && layer.click.some(function(f) { return f.toLowerCase() === 'photo'; });
+
   if (dtype === 'places' && data.photos && data.photos.length) {
+    // Places API layer — photo name is already in the response
     photo.src = 'https://places.googleapis.com/v1/' + data.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
     photo.style.display = 'block'; ph.style.display = 'none';
+
   } else if (dtype === 'sheet' && photoId) {
+    // Sheet layer with a Drive photo filename (e.g. People layer)
     photo.src = getDriveImageUrl(photoId);
     photo.style.display = 'block'; ph.style.display = 'none';
-    photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '🚴'; };
+    photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '📍'; };
+
+  } else if (dtype === 'sheet' && wantsPhoto && cleanPlaceId) {
+    // Sheet layer with a PlaceID and Photo in click fields — fetch photo from Places API.
+    // Show placeholder while loading, then swap in the photo if one is found.
+    photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '⏳';
+    fetch('https://places.googleapis.com/v1/places/' + cleanPlaceId + '?fields=photos&key=' + apiKey)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.photos && d.photos.length) {
+          photo.src = 'https://places.googleapis.com/v1/' + d.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
+          photo.style.display = 'block'; ph.style.display = 'none';
+          photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '📍'; };
+        } else {
+          ph.textContent = '📍';
+        }
+      })
+      .catch(function() { ph.textContent = '📍'; });
+
   } else {
     photo.style.display = 'none'; ph.style.display = 'flex';
-    ph.textContent = dtype === 'sheet' ? '📍' : '📍'; // default placeholder
+    ph.textContent = '📍';
   }
 
   // Detail fields
@@ -1116,12 +1150,7 @@ function showPopup(data, layer, dtype, lat, lng, photoId) {
     // Places API results always have a place id
     mapsHref = gmapsUrl(data);
   } else {
-    // Sheet layers: check for a PlaceID column (stored by the geocoding App Script).
-    // The cell may contain a HYPERLINK formula — extract just the place ID portion.
-    var rawPlaceId = (data['placeid'] || data['place_id'] || data['PlaceID'] || '').toString().trim();
-    // Strip the HYPERLINK wrapper if present, leaving just the ChIJ... ID
-    var placeIdMatch = rawPlaceId.match(/place_id:([^"&]+)/);
-    var cleanPlaceId = placeIdMatch ? placeIdMatch[1] : rawPlaceId;
+    // Sheet layers: use cleanPlaceId extracted earlier in showPopup
     mapsHref = cleanPlaceId
       ? 'https://www.google.com/maps/place/?q=place_id:' + cleanPlaceId
       : 'https://www.google.com/maps?q=' + lat + ',' + lng;
