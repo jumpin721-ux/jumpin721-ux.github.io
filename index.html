@@ -1060,13 +1060,13 @@ function showPopup(data, layer, dtype, lat, lng, photoId) {
     photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '🚴'; };
   } else {
     photo.style.display = 'none'; ph.style.display = 'flex';
-    ph.textContent = dtype === 'sheet' ? '🚴' : '📍';
+    ph.textContent = dtype === 'sheet' ? '📍' : '📍'; // default placeholder
   }
 
   // Detail fields
   var fields = document.getElementById('popup-fields'); fields.innerHTML = '';
   // Emoji icons keyed by lowercased field spec
-  var fieldIcons = { 'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐' };
+  var fieldIcons = { 'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐','state':'📌','item':'🏷','name':'🏷' };
 
   function addField(icon, text, isLink) {
     if (!text) return;
@@ -1099,7 +1099,7 @@ function showPopup(data, layer, dtype, lat, lng, photoId) {
     // Sheet layer fields — driven by the click columns in the config sheet
     layer.click.forEach(function(fieldSpec) {
       var key    = fieldSpec.toLowerCase().replace(/\s+/g, '');
-      if (key === 'photo' || key === 'name') return; // handled above
+      if (key === 'photo' || key === 'name' || key === 'placeid' || key === 'place_id') return; // handled elsewhere
       var val    = resolveField(fieldSpec, data);
       if (!val) return;
       var isLink = (key === 'website' || key === 'link' || key === 'email');
@@ -1108,10 +1108,25 @@ function showPopup(data, layer, dtype, lat, lng, photoId) {
     });
   }
 
-  // Open in Google Maps button at the bottom of the card
-  // For Places API results, use place_id URL for the full Place card with reviews/photos.
-  // For Sheet layers, fall back to lat,lng coordinates.
-  document.getElementById('popup-gmaps').href = dtype === 'places' ? gmapsUrl(data) : 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  // Open in Google Maps button at the bottom of the card.
+  // Priority: (1) Places API place_id, (2) Sheet layer PlaceID column, (3) lat,lng fallback.
+  // Using place_id opens the full Google Maps Place card (name, photos, reviews, hours).
+  var mapsHref;
+  if (dtype === 'places') {
+    // Places API results always have a place id
+    mapsHref = gmapsUrl(data);
+  } else {
+    // Sheet layers: check for a PlaceID column (stored by the geocoding App Script).
+    // The cell may contain a HYPERLINK formula — extract just the place ID portion.
+    var rawPlaceId = (data['placeid'] || data['place_id'] || data['PlaceID'] || '').toString().trim();
+    // Strip the HYPERLINK wrapper if present, leaving just the ChIJ... ID
+    var placeIdMatch = rawPlaceId.match(/place_id:([^"&]+)/);
+    var cleanPlaceId = placeIdMatch ? placeIdMatch[1] : rawPlaceId;
+    mapsHref = cleanPlaceId
+      ? 'https://www.google.com/maps/place/?q=place_id:' + cleanPlaceId
+      : 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  }
+  document.getElementById('popup-gmaps').href = mapsHref;
 }
 
 function closePopup() {
