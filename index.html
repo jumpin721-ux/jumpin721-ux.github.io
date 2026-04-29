@@ -723,8 +723,8 @@ async function loadSheetLayer(layer) {
     var headers = {};
     rows[0].forEach(function(h, i) { headers[h.trim().toLowerCase()] = i; });
 
-    var latCol      = headers['latitude'];
-    var lngCol      = headers['longitude'];
+    var latCol = headers['latitude'] !== undefined ? headers['latitude'] : headers['lat'];
+    var lngCol = headers['longitude'] !== undefined ? headers['longitude'] : headers['long'];
     if (latCol === undefined || lngCol === undefined) {
       console.error('Missing Latitude/Longitude columns in ' + layer.label); return 0;
     }
