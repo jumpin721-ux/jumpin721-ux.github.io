@@ -77,29 +77,28 @@
     .tt-link:hover { text-decoration: underline; }
 
     /* POPUP */
-    #popup { position: absolute; top: 16px; right: 16px; width: 300px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 500; display: none; flex-direction: column; overflow: hidden; max-height: calc(100vh - 80px); }
-    #popup.show { display: flex; }
-    #popup-close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.12); border: none; color: #333; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; z-index: 10; }
-    #popup-close:hover { background: rgba(0,0,0,0.2); }
-    #popup-photo { width: 100%; height: auto; max-height: 280px; object-fit: contain; display: none; }
-    #popup-placeholder { width: 100%; height: 80px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 28px; }
-    #popup-body { padding: 14px; overflow-y: auto; flex: 1; }
-    #popup-body::-webkit-scrollbar { width: 4px; }
-    #popup-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
-    .popup-tag { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; margin-bottom: 6px; color: white; }
-    #popup-name { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; color: #222; margin-bottom: 4px; line-height: 1.2; }
-    .popup-rating { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-    .popup-stars { color: #e8a020; font-size: 13px; }
-    .popup-rnum { font-size: 13px; font-weight: 500; color: #333; }
-    .popup-rcnt { font-size: 12px; color: #888; }
-    .popup-divider { border: none; border-top: 1px solid #eee; margin: 10px 0; }
-    .popup-field { display: flex; gap: 8px; margin-bottom: 6px; align-items: flex-start; }
-    .popup-icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; margin-top: 1px; color: #888; }
-    .popup-text { font-size: 13px; color: #333; line-height: 1.4; flex: 1; }
-    .popup-text a { color: #3d9be9; text-decoration: none; }
-    .popup-text a:hover { text-decoration: underline; }
-    #popup-gmaps { display: block; text-align: center; background: #3d9be9; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin-top: 10px; }
-    #popup-gmaps:hover { opacity: 0.85; }
+    /* InfoWindow custom styles — injected into the Google Maps InfoWindow container.
+       The InfoWindow itself provides the bubble + pointer/tail + close button. */
+    .iw-wrap { width: 280px; font-family: 'Barlow', sans-serif; }
+    .iw-photo { width: 100%; height: auto; max-height: 200px; object-fit: cover; display: none; border-radius: 4px; margin-bottom: 8px; }
+    .iw-placeholder { width: 100%; height: 60px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 24px; margin-bottom: 8px; }
+    .iw-tag { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; margin-bottom: 6px; color: white; }
+    .iw-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; color: #222; margin-bottom: 4px; line-height: 1.2; }
+    .iw-rating { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .iw-stars { color: #e8a020; font-size: 13px; }
+    .iw-rnum { font-size: 13px; font-weight: 500; color: #333; }
+    .iw-rcnt { font-size: 12px; color: #888; }
+    .iw-divider { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+    .iw-field { display: flex; gap: 8px; margin-bottom: 5px; align-items: flex-start; }
+    .iw-icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; margin-top: 1px; color: #888; }
+    .iw-text { font-size: 12px; color: #333; line-height: 1.4; flex: 1; }
+    .iw-text a { color: #3d9be9; text-decoration: none; }
+    .iw-text a:hover { text-decoration: underline; }
+    .iw-gmaps { display: block; text-align: center; background: #3d9be9; color: white; text-decoration: none; padding: 7px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top: 8px; }
+    .iw-gmaps:hover { opacity: 0.85; }
+    /* Suppress the default InfoWindow padding so our content fills edge-to-edge */
+    .gm-style .gm-style-iw-c { padding: 12px !important; }
+    .gm-style .gm-style-iw-d { overflow: auto !important; max-height: 420px !important; }
 
     /* ROUTE */
     #route-toggle { position: absolute; bottom: 24px; left: 12px; background: white; border: none; color: #555; padding: 6px 14px; border-radius: 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; z-index: 400; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -161,23 +160,9 @@
       <a class="tt-link" id="tt-link" href="#" target="_blank">↗ Open in Google Maps</a>
     </div>
 
-    <div id="popup">
-      <button id="popup-close">✕</button>
-      <img id="popup-photo" alt="photo"/>
-      <div id="popup-placeholder">📍</div>
-      <div id="popup-body">
-        <div id="popup-tag" class="popup-tag"></div>
-        <div id="popup-name"></div>
-        <div class="popup-rating" id="popup-rating" style="display:none">
-          <span class="popup-stars" id="popup-stars"></span>
-          <span class="popup-rnum" id="popup-rnum"></span>
-          <span class="popup-rcnt" id="popup-rcnt"></span>
-        </div>
-        <hr class="popup-divider"/>
-        <div id="popup-fields"></div>
-        <a id="popup-gmaps" href="#" target="_blank">↗ Open in Google Maps</a>
-      </div>
-    </div>
+    <!-- Popup content is now rendered inside a Google Maps InfoWindow,
+         which anchors to the marker with a pointer tail (like Google My Maps).
+         No static HTML needed here — the InfoWindow is built dynamically in JS. -->
 
     <button id="route-toggle">🛣 Route Planner</button>
     <div id="route-panel">
@@ -252,6 +237,8 @@ let imageCache = {};      // filename → Drive file ID  (avoids repeat Drive AP
 let routeCache = {};      // filename → Drive file ID  (for GPX files on Drive)
 let autoPolylines = {};   // layerId → [google.maps.Polyline] for GPX-Auto routes
 let clickPolyline  = null; // Single polyline shown when user clicks a Bike Rides marker
+let fileGPXLine    = null; // Polyline loaded from a user-uploaded GPX file — persists until Route Planner reopens
+let infoWindow     = null; // Google Maps InfoWindow — the anchored popup with pointer tail
 var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
 
 // ═══════════════════════════════════════════════════════════
@@ -278,7 +265,7 @@ document.getElementById('route-toggle').addEventListener('click', toggleRoute);
 document.getElementById('r-go').addEventListener('click',        showRoute);
 document.getElementById('r-clear').addEventListener('click',     clearRoute);
 document.getElementById('gpx-file').addEventListener('change',   loadGPXFile);
-document.getElementById('popup-close').addEventListener('click', closePopup);
+// InfoWindow has its own built-in close button — no separate listener needed
 
 // ═══════════════════════════════════════════════════════════
 // INIT MAP — called by Google Maps JS once it has loaded
@@ -306,8 +293,7 @@ window.initMap = async function() {
   // Save position whenever the map comes to rest after a pan/zoom
   map.addListener('idle', savePos);
 
-  // Clicking the map background closes the popup
-  map.addListener('click', closePopup);
+  // InfoWindow closes itself when the user clicks the map background or its X button
 
   // Keep tooltip alive while the mouse is over it,
   // but hide it shortly after the mouse leaves
@@ -953,7 +939,7 @@ function makeMarker(place, layer, lat, lng) {
   });
   m.addListener('mouseover', function(e) { showTooltip(place, layer, e, 'places'); });
   m.addListener('mouseout',  scheduleHide);
-  m.addListener('click',     function() { showPopup(place, layer, 'places', lat, lng, null); });
+  m.addListener('click',     function() { showPopup(place, layer, 'places', lat, lng, null, m); });
   return m;
 }
 
@@ -969,7 +955,7 @@ function makeSheetMarker(record, layer, lat, lng, photoId, hasClickGpx, gpxColor
   m.addListener('mouseover', function(e) { showTooltip(record, layer, e, 'sheet'); });
   m.addListener('mouseout',  scheduleHide);
   m.addListener('click', function() {
-    showPopup(record, layer, 'sheet', lat, lng, photoId);
+    showPopup(record, layer, 'sheet', lat, lng, photoId, m);
     // For click-GPX layers (Bike Rides), draw the route when the pin is clicked
     if (hasClickGpx && record._gpxFile) {
       renderClickGPX(record._gpxFile, record._gpxColor);
@@ -1028,144 +1014,159 @@ function hideTooltip()  { clearTimeout(_hideTimer); document.getElementById('too
 // POPUP (click card)
 // ═══════════════════════════════════════════════════════════
 
-function showPopup(data, layer, dtype, lat, lng, photoId) {
+// ═══════════════════════════════════════════════════════════
+// POPUP (InfoWindow — anchored to marker with pointer tail)
+// Uses google.maps.InfoWindow so the popup appears above the
+// clicked marker, just like Google My Maps.
+// ═══════════════════════════════════════════════════════════
+
+function showPopup(data, layer, dtype, lat, lng, photoId, marker) {
   hideTooltip();
-  document.getElementById('popup').classList.add('show');
 
-  // Layer label badge (coloured pill at the top of the card)
-  var tag = document.getElementById('popup-tag'); tag.textContent = layer.label; tag.style.background = layer.color;
+  // Close any previously open InfoWindow
+  if (infoWindow) infoWindow.close();
 
-  // Title
-  var name = dtype === 'places'
-    ? (data.displayName && data.displayName.text || 'Unknown')
-    : resolveField('name', data);
-  document.getElementById('popup-name').textContent = name;
-
-  // Star rating (Places API only)
-  var rrow = document.getElementById('popup-rating');
-  if (dtype === 'places' && data.rating) {
-    rrow.style.display = 'flex';
-    document.getElementById('popup-stars').textContent = '★'.repeat(Math.round(data.rating)) + '☆'.repeat(5-Math.round(data.rating));
-    document.getElementById('popup-rnum').textContent  = data.rating.toFixed(1);
-    document.getElementById('popup-rcnt').textContent  = data.userRatingCount ? '(' + data.userRatingCount.toLocaleString() + ' reviews)' : '';
-  } else { rrow.style.display = 'none'; }
-
-  // Extract PlaceID early so it's available to both the photo block and the Maps URL block.
-  // The cell may contain a HYPERLINK formula — extract just the ChIJ... ID portion.
+  // Extract PlaceID early — used by both photo fetch and Maps URL.
+  // The cell may contain a HYPERLINK formula; extract just the ChIJ... ID.
   var rawPlaceId   = (data['placeid'] || data['place_id'] || data['PlaceID'] || '').toString().trim();
   var placeIdMatch = rawPlaceId.match(/place_id:([^"&]+)/);
   var cleanPlaceId = placeIdMatch ? placeIdMatch[1] : rawPlaceId;
 
-  // Photo — three possible sources depending on layer type:
-  //   1. Places API layers: photo comes directly in the API response
-  //   2. Sheet layers with a Drive photo filename: look up in Drive (e.g. People layer)
-  //   3. Sheet layers with a PlaceID and 'Photo' in click fields: fetch from Places API by ID
-  //   4. Fallback: show a placeholder emoji
-  var photo = document.getElementById('popup-photo'), ph = document.getElementById('popup-placeholder');
-  var wantsPhoto = layer.click && layer.click.some(function(f) { return f.toLowerCase() === 'photo'; });
+  // ── Build the InfoWindow HTML content ──
+  var name = dtype === 'places'
+    ? (data.displayName && data.displayName.text || 'Unknown')
+    : resolveField('name', data);
 
-  if (dtype === 'places' && data.photos && data.photos.length) {
-    // Places API layer — photo name is already in the response
-    photo.src = 'https://places.googleapis.com/v1/' + data.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
-    photo.style.display = 'block'; ph.style.display = 'none';
+  // Layer label badge
+  var html = '<div class="iw-wrap">';
+  html += '<span class="iw-tag" style="background:' + layer.color + '">' + escHtml(layer.label) + '</span>';
 
-  } else if (dtype === 'sheet' && photoId) {
-    // Sheet layer with a Drive photo filename (e.g. People layer)
-    photo.src = getDriveImageUrl(photoId);
-    photo.style.display = 'block'; ph.style.display = 'none';
-    photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '📍'; };
+  // Unique IDs so we can find these elements after InfoWindow renders
+  var photoId2 = 'iw-photo-' + Date.now();
+  var phId2    = 'iw-ph-'    + Date.now();
+  html += '<img id="' + photoId2 + '" class="iw-photo" alt="photo"/>';
+  html += '<div id="' + phId2 + '" class="iw-placeholder">&#128205;</div>';
 
-  } else if (dtype === 'sheet' && wantsPhoto && cleanPlaceId) {
-    // Sheet layer with a PlaceID and Photo in click fields — fetch photo from Places API.
-    // Show placeholder while loading, then swap in the photo if one is found.
-    photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '⏳';
-    fetch('https://places.googleapis.com/v1/places/' + cleanPlaceId + '?fields=photos&key=' + apiKey)
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.photos && d.photos.length) {
-          photo.src = 'https://places.googleapis.com/v1/' + d.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
-          photo.style.display = 'block'; ph.style.display = 'none';
-          photo.onerror = function() { photo.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = '📍'; };
-        } else {
-          ph.textContent = '📍';
-        }
-      })
-      .catch(function() { ph.textContent = '📍'; });
+  // Name
+  html += '<div class="iw-name">' + escHtml(name) + '</div>';
 
-  } else {
-    photo.style.display = 'none'; ph.style.display = 'flex';
-    ph.textContent = '📍';
+  // Star rating (Places API only)
+  if (dtype === 'places' && data.rating) {
+    var stars = '&#9733;'.repeat(Math.round(data.rating)) + '&#9734;'.repeat(5 - Math.round(data.rating));
+    var rcnt  = data.userRatingCount ? ' (' + data.userRatingCount.toLocaleString() + ' reviews)' : '';
+    html += '<div class="iw-rating"><span class="iw-stars">' + stars + '</span>'
+          + '<span class="iw-rnum">' + data.rating.toFixed(1) + '</span>'
+          + '<span class="iw-rcnt">' + rcnt + '</span></div>';
   }
 
-  // Detail fields
-  var fields = document.getElementById('popup-fields'); fields.innerHTML = '';
-  // Emoji icons keyed by lowercased field spec
-  var fieldIcons = { 'address':'📍','city+state+zip':'📍','notes':'📝','phone':'📞','website':'🌐','email':'📧','description':'📝','link':'🔗','miles':'🚴','distance':'🚴','length':'📏','year':'📅','days':'📅','elevation':'⛰','surface':'🛤','cuisine':'🍽','hours':'🕐','state':'📌','item':'🏷','name':'🏷' };
+  html += '<hr class="iw-divider"/>';
+
+  var fieldIcons = { 'address':'&#128205;','city+state+zip':'&#128205;','notes':'&#128221;',
+    'phone':'&#128222;','website':'&#127760;','email':'&#128231;','description':'&#128221;',
+    'link':'&#128279;','miles':'&#128690;','distance':'&#128690;','length':'&#128207;',
+    'year':'&#128197;','days':'&#128197;','elevation':'&#9968;','surface':'&#128740;',
+    'cuisine':'&#127869;','hours':'&#128336;','state':'&#128204;','item':'&#127991;','name':'&#127991;' };
 
   function addField(icon, text, isLink) {
     if (!text) return;
-    var row = document.createElement('div'); row.className = 'popup-field';
-    var ic  = document.createElement('div'); ic.className  = 'popup-icon'; ic.textContent = icon;
-    var tx  = document.createElement('div'); tx.className  = 'popup-text';
-    if (isLink) {
-      var a = document.createElement('a');
-      a.href      = text.match(/^https?:\/\//) ? text : '#';
-      a.textContent = text.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      a.target    = '_blank';
-      tx.appendChild(a);
-    } else { tx.textContent = text; }
-    row.appendChild(ic); row.appendChild(tx); fields.appendChild(row);
+    var safeText = isLink
+      ? '<a href="' + (text.match(/^https?:\/\//) ? escHtml(text) : '#') + '" target="_blank">'
+        + escHtml(text.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a>'
+      : escHtml(text);
+    html += '<div class="iw-field"><div class="iw-icon">' + icon + '</div>'
+          + '<div class="iw-text">' + safeText + '</div></div>';
   }
 
   if (dtype === 'places') {
-    // Standard Places API fields
-    if (data.primaryTypeDisplayName && data.primaryTypeDisplayName.text) addField('🏷', data.primaryTypeDisplayName.text);
-    if (data.editorialSummary && data.editorialSummary.text)             addField('📝', data.editorialSummary.text);
-    if (data.priceLevel)                                                  addField('💰', priceStr(data.priceLevel));
-    if (data.formattedAddress)                                           addField('📍', data.formattedAddress);
+    if (data.primaryTypeDisplayName && data.primaryTypeDisplayName.text) addField(fieldIcons['cuisine'], data.primaryTypeDisplayName.text, false);
+    if (data.editorialSummary && data.editorialSummary.text)             addField(fieldIcons['notes'], data.editorialSummary.text, false);
+    if (data.priceLevel)                                                  addField('&#128176;', priceStr(data.priceLevel), false);
+    if (data.formattedAddress)                                            addField(fieldIcons['address'], data.formattedAddress, false);
     if (data.regularOpeningHours && data.regularOpeningHours.weekdayDescriptions) {
-      var d = new Date().getDay(), idx = d === 0 ? 6 : d - 1; // Sunday=0 in JS, Mon=0 in Places API
-      var h = data.regularOpeningHours.weekdayDescriptions[idx]; if (h) addField('🕐', h);
+      var dow = new Date().getDay(), idx = dow === 0 ? 6 : dow - 1;
+      var h = data.regularOpeningHours.weekdayDescriptions[idx]; if (h) addField(fieldIcons['hours'], h, false);
     }
-    if (data.websiteUri)           addField('🌐', data.websiteUri,         true);
-    if (data.nationalPhoneNumber)  addField('📞', data.nationalPhoneNumber);
+    if (data.websiteUri)          addField(fieldIcons['website'], data.websiteUri, true);
+    if (data.nationalPhoneNumber) addField(fieldIcons['phone'], data.nationalPhoneNumber, false);
   } else {
-    // Sheet layer fields — driven by the click columns in the config sheet
     layer.click.forEach(function(fieldSpec) {
-      var key    = fieldSpec.toLowerCase().replace(/\s+/g, '');
-      if (key === 'photo' || key === 'name' || key === 'placeid' || key === 'place_id') return; // handled elsewhere
-      var val    = resolveField(fieldSpec, data);
+      var key = fieldSpec.toLowerCase().replace(/\s+/g, '');
+      if (key === 'photo' || key === 'name' || key === 'placeid' || key === 'place_id') return;
+      var val = resolveField(fieldSpec, data);
       if (!val) return;
       var isLink = (key === 'website' || key === 'link' || key === 'email');
-      var icon   = fieldIcons[fieldSpec.toLowerCase()] || fieldIcons[key] || '•';
+      var icon   = fieldIcons[fieldSpec.toLowerCase()] || fieldIcons[key] || '&#8226;';
       addField(icon, val, isLink);
     });
   }
 
-  // Open in Google Maps button at the bottom of the card.
-  // Priority: (1) Places API place_id, (2) Sheet layer PlaceID column, (3) lat,lng fallback.
-  // Using place_id opens the full Google Maps Place card (name, photos, reviews, hours).
-  var mapsHref;
-  if (dtype === 'places') {
-    // Places API results always have a place id
-    mapsHref = gmapsUrl(data);
-  } else {
-    // Sheet layers: use cleanPlaceId extracted earlier in showPopup
-    mapsHref = cleanPlaceId
-      ? 'https://www.google.com/maps/place/?q=place_id:' + cleanPlaceId
-      : 'https://www.google.com/maps?q=' + lat + ',' + lng;
-  }
-  document.getElementById('popup-gmaps').href = mapsHref;
+  // Open in Google Maps button
+  var mapsHref = dtype === 'places'
+    ? gmapsUrl(data)
+    : (cleanPlaceId
+        ? 'https://www.google.com/maps/place/?q=place_id:' + cleanPlaceId
+        : 'https://www.google.com/maps?q=' + lat + ',' + lng);
+  html += '<a class="iw-gmaps" href="' + escHtml(mapsHref) + '" target="_blank">&#8599; Open in Google Maps</a>';
+  html += '</div>'; // .iw-wrap
+
+  // ── Create and open the InfoWindow ──
+  infoWindow = new google.maps.InfoWindow({ content: html, maxWidth: 300 });
+
+  // Load photos after InfoWindow DOM is ready
+  google.maps.event.addListenerOnce(infoWindow, 'domready', function() {
+    var photoEl = document.getElementById(photoId2);
+    var phEl    = document.getElementById(phId2);
+    if (!photoEl || !phEl) return;
+
+    var wantsPhoto = layer.click && layer.click.some(function(f) { return f.toLowerCase() === 'photo'; });
+
+    if (dtype === 'places' && data.photos && data.photos.length) {
+      photoEl.src = 'https://places.googleapis.com/v1/' + data.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
+      photoEl.style.display = 'block'; phEl.style.display = 'none';
+      photoEl.onerror = function() { photoEl.style.display = 'none'; phEl.style.display = 'flex'; };
+
+    } else if (dtype === 'sheet' && photoId) {
+      photoEl.src = getDriveImageUrl(photoId);
+      photoEl.style.display = 'block'; phEl.style.display = 'none';
+      photoEl.onerror = function() { photoEl.style.display = 'none'; phEl.style.display = 'flex'; };
+
+    } else if (dtype === 'sheet' && wantsPhoto && cleanPlaceId) {
+      phEl.textContent = '⏳';
+      fetch('https://places.googleapis.com/v1/places/' + cleanPlaceId + '?fields=photos&key=' + apiKey)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.photos && d.photos.length) {
+            photoEl.src = 'https://places.googleapis.com/v1/' + d.photos[0].name + '/media?maxHeightPx=300&key=' + apiKey;
+            photoEl.style.display = 'block'; phEl.style.display = 'none';
+            photoEl.onerror = function() { photoEl.style.display = 'none'; phEl.style.display = 'flex'; };
+          } else { phEl.textContent = '📍'; }
+        })
+        .catch(function() { phEl.textContent = '📍'; });
+    }
+  });
+
+  // Anchor to the clicked marker — this gives the pointer/tail
+  infoWindow.open(map, marker);
+
+  // Clear click-GPX when InfoWindow is closed via its X button
+  google.maps.event.addListenerOnce(infoWindow, 'closeclick', clearClickGPX);
 }
 
+
 function closePopup() {
-  document.getElementById('popup').classList.remove('show');
-  clearClickGPX(); // also hide any click-rendered route
+  // Close the InfoWindow if one is open (also fires clearClickGPX via closeclick listener)
+  if (infoWindow) { infoWindow.close(); infoWindow = null; }
+  clearClickGPX();
 }
 
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
+
+// Escape HTML special characters to prevent XSS when building InfoWindow HTML strings
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // Build the Google Maps URL for a Places API result.
 // place_id: format opens the full Google Maps Place card (name, photos, reviews, hours).
@@ -1193,6 +1194,10 @@ function toggleRoute() {
   routeOpen = !routeOpen;
   document.getElementById('route-panel').style.display  = routeOpen ? 'block' : 'none';
   document.getElementById('route-toggle').style.display = routeOpen ? 'none'  : 'block';
+
+  // Opening the Route Planner clears any file-uploaded GPX route —
+  // the user is starting a new planning session
+  if (routeOpen && fileGPXLine) { fileGPXLine.setMap(null); fileGPXLine = null; }
 }
 
 function showRoute() {
@@ -1211,20 +1216,37 @@ function showRoute() {
 
 function clearRoute() { routeRenderer.setDirections({ routes: [] }); clearClickGPX(); }
 
-// Allow the user to upload a local GPX file and display it on the map
+// Allow the user to upload a local GPX file and display it on the map.
+// After loading: the Route Planner panel closes automatically, and the route
+// stays visible until the Route Planner is reopened (which clears it).
 function loadGPXFile(e) {
   var file = e.target.files[0]; if (!file) return;
   var reader = new FileReader();
   reader.onload = function(ev) {
     var pts = parseGPX(ev.target.result);
     if (!pts.length) { alert('No track points found in this GPX file.'); return; }
+
+    // Clear any existing click-GPX or turn-by-turn route
     clearClickGPX();
     routeRenderer.setDirections({ routes: [] });
-    clickPolyline = new google.maps.Polyline({ path: pts, strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.85, map: map });
+
+    // Clear any previously file-uploaded GPX
+    if (fileGPXLine) { fileGPXLine.setMap(null); fileGPXLine = null; }
+
+    // Draw the new route and fit the map to it
+    fileGPXLine = new google.maps.Polyline({ path: pts, strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.85, map: map });
     var b = new google.maps.LatLngBounds();
     pts.forEach(function(p) { b.extend(p); });
     map.fitBounds(b);
     setStatus('GPX loaded: ' + pts.length + ' points from "' + file.name + '"');
+
+    // Close the Route Planner panel — the route speaks for itself
+    routeOpen = false;
+    document.getElementById('route-panel').style.display  = 'none';
+    document.getElementById('route-toggle').style.display = 'block';
+
+    // Reset the file input so the same file can be reloaded if needed
+    e.target.value = '';
   };
   reader.readAsText(file);
 }
