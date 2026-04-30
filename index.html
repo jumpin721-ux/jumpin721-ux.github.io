@@ -80,7 +80,7 @@
     /* InfoWindow custom styles — injected into the Google Maps InfoWindow container.
        The InfoWindow itself provides the bubble + pointer/tail + close button. */
     .iw-wrap { width: 280px; font-family: 'Barlow', sans-serif; }
-    .iw-photo { width: 100%; height: auto; max-height: 200px; object-fit: cover; display: none; border-radius: 4px; margin-bottom: 8px; }
+    .iw-photo { width: 100%; height: auto; max-height: 300px; object-fit: contain; display: none; border-radius: 4px; margin-bottom: 8px; background: #f8f8f8; }
     .iw-placeholder { width: 100%; height: 60px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 24px; margin-bottom: 8px; }
     .iw-tag { display: inline-block; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; margin-bottom: 6px; color: white; }
     .iw-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; color: #222; margin-bottom: 4px; line-height: 1.2; }
@@ -97,23 +97,23 @@
     .iw-gmaps { display: block; text-align: center; background: #3d9be9; color: white; text-decoration: none; padding: 7px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top: 8px; }
     .iw-gmaps:hover { opacity: 0.85; }
     /* Suppress the default InfoWindow padding so our content fills edge-to-edge */
-    .gm-style .gm-style-iw-c { padding: 12px !important; }
-    .gm-style .gm-style-iw-d { overflow: auto !important; max-height: 420px !important; }
+    .gm-style .gm-style-iw-c { padding: 0 !important; border-radius: 8px !important; }
+    .gm-style .gm-style-iw-d { overflow: auto !important; max-height: 520px !important; padding: 12px !important; box-sizing: border-box; }
+    /* Remove the extra top padding Google adds above the close button */
+    .gm-style .gm-style-iw-t::after { display: none; }
+    .gm-style-iw-chr { position: absolute; top: 4px; right: 4px; z-index: 10; }
+    .gm-style-iw-chr button { background: rgba(0,0,0,0.1) !important; border-radius: 50% !important; }
 
     /* ROUTE */
-    #route-toggle { position: absolute; bottom: 24px; left: 12px; background: white; border: none; color: #555; padding: 6px 14px; border-radius: 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; z-index: 400; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    #route-toggle:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.25); }
-    #route-panel { position: absolute; bottom: 60px; left: 12px; background: white; border-radius: 8px; padding: 14px; z-index: 400; width: 240px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: none; }
-    #route-panel h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 10px; }
-    .ri { width: 100%; background: #f5f5f5; border: 1px solid #ddd; color: #333; padding: 6px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 6px; font-family: 'Barlow', sans-serif; }
-    .ri:focus { outline: none; border-color: #3d9be9; }
-    .rbtn-row { display: flex; gap: 6px; margin-top: 4px; }
-    .rbtn { flex: 1; background: #f0f0f0; border: 1px solid #ddd; color: #333; padding: 5px; border-radius: 4px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
-    .rbtn:hover { border-color: #3d9be9; color: #3d9be9; }
-    .rbtn.primary { background: #e8a020; color: white; border-color: #e8a020; }
-    .rbtn.primary:hover { opacity: 0.85; color: white; }
-    #gpx-label { display: block; text-align: center; font-size: 11px; color: #888; cursor: pointer; padding: 5px; border: 1px dashed #ddd; border-radius: 4px; margin-top: 8px; }
-    #gpx-label:hover { border-color: #3d9be9; color: #3d9be9; }
+    /* Clear Route button — only visible when a GPX route is active */
+    #clear-route-btn { position: absolute; bottom: 24px; left: 12px; background: #e8a020; color: white; border: none; border-radius: 20px; padding: 6px 16px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; z-index: 400; box-shadow: 0 2px 8px rgba(0,0,0,0.25); display: none; }
+    #clear-route-btn:hover { opacity: 0.85; }
+    /* GPX loader row inside the Layers panel */
+    #gpx-layer-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-top: 1px solid #eee; cursor: pointer; }
+    #gpx-layer-row:hover { background: #f5f5f5; }
+    #gpx-layer-icon { font-size: 14px; }
+    #gpx-layer-lbl { font-size: 13px; color: #333; flex: 1; }
+    #gpx-layer-cnt { font-size: 10px; color: #aaa; }
     #gpx-file { display: none; }
   </style>
 </head>
@@ -164,22 +164,10 @@
          which anchors to the marker with a pointer tail (like Google My Maps).
          No static HTML needed here — the InfoWindow is built dynamically in JS. -->
 
-    <button id="route-toggle">🛣 Route Planner</button>
-    <div id="route-panel">
-      <h3>🛣 Route Planner</h3>
-      <input class="ri" id="r-start" placeholder="Start (address or city)"/>
-      <input class="ri" id="r-end" placeholder="End (address or city)"/>
-      <select class="ri" id="r-mode">
-        <option value="DRIVING">🚗 Driving</option>
-        <option value="BICYCLING">🚲 Cycling</option>
-        <option value="WALKING">🚶 Walking</option>
-      </select>
-      <div class="rbtn-row">
-        <button class="rbtn primary" id="r-go">Show Route</button>
-        <button class="rbtn" id="r-clear">Clear</button>
-      </div>
-      <label id="gpx-label">📂 Upload GPX File<input type="file" id="gpx-file" accept=".gpx"/></label>
-    </div>
+    <!-- Floating Clear Route button — only visible when a GPX route is active -->
+    <button id="clear-route-btn" onclick="clearAllRoutes()">✕ Clear Route</button>
+    <!-- Hidden file input triggered by the GPX row in the Layers panel -->
+    <input type="file" id="gpx-file" accept=".gpx"/>
   </div>
 </div>
 
@@ -228,8 +216,8 @@ let apiKey = API_KEY;     // Kept as a variable so future code can override it
 let markers  = {};        // layerId → [{marker, place|record}]
 let enabled  = {};        // layerId → boolean (is this layer visible?)
 let seen     = new Set(); // Place IDs already plotted (prevents duplicates)
-let routeRenderer;        // google.maps.DirectionsRenderer for the Route Planner
-let routeOpen      = false;
+let routeRenderer = null; // Reserved — DirectionsRenderer removed with Route Planner
+
 let layersPanelOpen = false;
 let LAYERS = [];          // Array of layer config objects built from the sheet
 let sheetLoaded = {};     // layerId → boolean (has this sheet layer been fetched yet?)
@@ -261,10 +249,7 @@ var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
 // Wire up the rest of the UI controls
 document.getElementById('search-btn').addEventListener('click',  searchArea);
 document.getElementById('toggle-all').addEventListener('click',  toggleAll);
-document.getElementById('route-toggle').addEventListener('click', toggleRoute);
-document.getElementById('r-go').addEventListener('click',        showRoute);
-document.getElementById('r-clear').addEventListener('click',     clearRoute);
-document.getElementById('gpx-file').addEventListener('change',   loadGPXFile);
+document.getElementById('gpx-file').addEventListener('change', loadGPXFile);
 // InfoWindow has its own built-in close button — no separate listener needed
 
 // ═══════════════════════════════════════════════════════════
@@ -282,6 +267,7 @@ window.initMap = async function() {
     // Hide controls we don't need
     streetViewControl:  false,
     fullscreenControl:  false,
+    gestureHandling:    'greedy',  // single-finger pan on mobile
     // Keep map type (road/satellite) and zoom in sensible positions
     mapTypeControl:     true,
     mapTypeControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
@@ -300,12 +286,7 @@ window.initMap = async function() {
   document.getElementById('tooltip').addEventListener('mouseenter', function(){ clearTimeout(_hideTimer); });
   document.getElementById('tooltip').addEventListener('mouseleave', scheduleHide);
 
-  // Set up the Route Planner renderer (used by showRoute() / DirectionsService)
-  routeRenderer = new google.maps.DirectionsRenderer({
-    map: map,
-    suppressMarkers: false,
-    polylineOptions: { strokeColor:'#e8a020', strokeWeight:4, strokeOpacity:0.8 }
-  });
+  // Route Planner removed — GPX file loading is now in the Layers panel
 
   // Fetch the layer configuration from Google Sheets and build the panel
   showLoadingMsg('Loading layer config…');
@@ -496,6 +477,9 @@ function buildPanel() {
       list.appendChild(makeLayerRow(item, false));
     }
   });
+
+  // Add the GPX file loader row at the bottom of the panel
+  addGpxLayerRow();
 }
 
 // Creates a single layer row (checkbox + color dot + label + count badge)
@@ -528,6 +512,26 @@ function makeLayerRow(layer, isChild) {
 
   row.appendChild(cb); row.appendChild(dot); row.appendChild(lbl); row.appendChild(cnt);
   return row;
+}
+
+// Add the GPX file loader as a pseudo-layer row at the bottom of the Layers panel.
+// Clicking it opens the file picker; the loaded route persists until Clear Route is used.
+function addGpxLayerRow() {
+  var list = document.getElementById('layers-list');
+  var row  = document.createElement('div');
+  row.id   = 'gpx-layer-row';
+
+  var icon = document.createElement('span'); icon.id = 'gpx-layer-icon'; icon.textContent = '📂';
+  var lbl  = document.createElement('span'); lbl.id  = 'gpx-layer-lbl';  lbl.textContent  = 'Load GPX File';
+  var cnt  = document.createElement('span'); cnt.id  = 'gpx-layer-cnt';  // shows filename after load
+
+  // Clicking the row triggers the hidden file input
+  row.addEventListener('click', function() {
+    document.getElementById('gpx-file').click();
+  });
+
+  row.appendChild(icon); row.appendChild(lbl); row.appendChild(cnt);
+  list.appendChild(row);
 }
 
 // Show or hide all markers for a given layer
@@ -880,6 +884,9 @@ async function renderClickGPX(gpxFilename, color) {
       path: pts, strokeColor: color || '#e8a020',
       strokeWeight: 4, strokeOpacity: 0.85, map: map
     });
+    // Show the Clear Route button while a click-GPX route is active
+    var btn = document.getElementById('clear-route-btn');
+    if (btn) btn.style.display = 'block';
   } catch(e) { console.error('renderClickGPX error:', e); }
 }
 
@@ -904,9 +911,14 @@ function parseGPX(text) {
     .filter(function(p) { return !isNaN(p.lat) && !isNaN(p.lng); });
 }
 
-// Remove any click-rendered GPX polyline from the map
+// Remove the click-rendered GPX polyline (Bike Rides marker click).
+// Hides the Clear Route button only if no file GPX is also active.
 function clearClickGPX() {
   if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
+  if (!fileGPXLine) {
+    var btn = document.getElementById('clear-route-btn');
+    if (btn) btn.style.display = 'none';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1148,15 +1160,13 @@ function showPopup(data, layer, dtype, lat, lng, photoId, marker) {
   // Anchor to the clicked marker — this gives the pointer/tail
   infoWindow.open(map, marker);
 
-  // Clear click-GPX when InfoWindow is closed via its X button
-  google.maps.event.addListenerOnce(infoWindow, 'closeclick', clearClickGPX);
+  // Route stays on map when InfoWindow closes — user clears via the Clear Route button
 }
 
 
 function closePopup() {
-  // Close the InfoWindow if one is open (also fires clearClickGPX via closeclick listener)
+  // Close the InfoWindow — route stays on map (user clears via Clear Route button)
   if (infoWindow) { infoWindow.close(); infoWindow = null; }
-  clearClickGPX();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1190,35 +1200,10 @@ function setStatus(h) { document.getElementById('layers-status').textContent = h
 // from the Places API and works with street addresses.
 // ═══════════════════════════════════════════════════════════
 
-function toggleRoute() {
-  routeOpen = !routeOpen;
-  document.getElementById('route-panel').style.display  = routeOpen ? 'block' : 'none';
-  document.getElementById('route-toggle').style.display = routeOpen ? 'none'  : 'block';
 
-  // Opening the Route Planner clears any file-uploaded GPX route —
-  // the user is starting a new planning session
-  if (routeOpen && fileGPXLine) { fileGPXLine.setMap(null); fileGPXLine = null; }
-}
 
-function showRoute() {
-  var s = document.getElementById('r-start').value.trim();
-  var e = document.getElementById('r-end').value.trim();
-  if (!s || !e) { alert('Enter start and end points.'); return; }
-  var ds = new google.maps.DirectionsService();
-  ds.route(
-    { origin: s, destination: e, travelMode: google.maps.TravelMode[document.getElementById('r-mode').value] },
-    function(res, status) {
-      if (status === 'OK') { clearClickGPX(); routeRenderer.setDirections(res); }
-      else alert('Route error: ' + status);
-    }
-  );
-}
-
-function clearRoute() { routeRenderer.setDirections({ routes: [] }); clearClickGPX(); }
-
-// Allow the user to upload a local GPX file and display it on the map.
-// After loading: the Route Planner panel closes automatically, and the route
-// stays visible until the Route Planner is reopened (which clears it).
+// Load a GPX file chosen by the user from the Layers panel GPX row.
+// The route stays on the map until clearAllRoutes() is called.
 function loadGPXFile(e) {
   var file = e.target.files[0]; if (!file) return;
   var reader = new FileReader();
@@ -1226,29 +1211,43 @@ function loadGPXFile(e) {
     var pts = parseGPX(ev.target.result);
     if (!pts.length) { alert('No track points found in this GPX file.'); return; }
 
-    // Clear any existing click-GPX or turn-by-turn route
-    clearClickGPX();
-    routeRenderer.setDirections({ routes: [] });
+    // Clear any existing routes
+    clearAllRoutes();
 
-    // Clear any previously file-uploaded GPX
-    if (fileGPXLine) { fileGPXLine.setMap(null); fileGPXLine = null; }
-
-    // Draw the new route and fit the map to it
-    fileGPXLine = new google.maps.Polyline({ path: pts, strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.85, map: map });
+    // Draw the new route and fit the map to show it fully
+    fileGPXLine = new google.maps.Polyline({
+      path: pts, strokeColor: '#e8a020', strokeWeight: 4, strokeOpacity: 0.85, map: map
+    });
     var b = new google.maps.LatLngBounds();
     pts.forEach(function(p) { b.extend(p); });
     map.fitBounds(b);
     setStatus('GPX loaded: ' + pts.length + ' points from "' + file.name + '"');
 
-    // Close the Route Planner panel — the route speaks for itself
-    routeOpen = false;
-    document.getElementById('route-panel').style.display  = 'none';
-    document.getElementById('route-toggle').style.display = 'block';
+    // Show the Clear Route button now that a route is active
+    document.getElementById('clear-route-btn').style.display = 'block';
 
-    // Reset the file input so the same file can be reloaded if needed
+    // Update the GPX row label in the Layers panel
+    var lbl = document.getElementById('gpx-layer-cnt');
+    if (lbl) lbl.textContent = file.name.replace('.gpx','');
+
+    // Reset so the same file can be reloaded if needed
     e.target.value = '';
   };
   reader.readAsText(file);
+}
+
+// Clear ALL active routes — both click-GPX (Bike Rides) and file-uploaded GPX.
+// Called by the Clear Route button and when a new file is loaded.
+function clearAllRoutes() {
+  // Clear click-GPX (Bike Rides marker click)
+  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
+  // Clear file-uploaded GPX
+  if (fileGPXLine)   { fileGPXLine.setMap(null);   fileGPXLine   = null; }
+  // Hide the Clear Route button
+  document.getElementById('clear-route-btn').style.display = 'none';
+  // Reset GPX row label
+  var lbl = document.getElementById('gpx-layer-cnt');
+  if (lbl) lbl.textContent = '';
 }
 
 // ═══════════════════════════════════════════════════════════
