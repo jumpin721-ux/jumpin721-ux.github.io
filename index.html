@@ -748,11 +748,15 @@ async function loadSheetLayer(layer) {
       var hasPin = !isNaN(lat) && !isNaN(lng);
 
       // ── Continuation / no-pin row ──
-      // Rows with a GPX file but no lat/lng just draw a route segment — no marker.
-      // This is how multi-part routes (e.g. Northern Tier splits) work.
+      // Rows with GPX data but no lat/lng just draw route segments — no marker.
+      // The cell value may contain multiple pipe-separated segments, each with
+      // their own optional color: "day1.gpx #e05252 | day2.gpx #3daa5c"
       if (!hasPin) {
         if (gpxAutoCol !== undefined && gpxFilename) {
-          promises.push(fetchAndRenderGPX(gpxFilename, gpxColor, layer.id));
+          var segs = parseGpxSegments(gpxFilename, gpxColor);
+          segs.forEach(function(seg) {
+            promises.push(fetchAndRenderGPX(seg.file, seg.color, layer.id));
+          });
         }
         continue; // no lat/lng → nothing else to do for this row
       }
@@ -781,9 +785,13 @@ async function loadSheetLayer(layer) {
           markers[layer.id].push({ marker: marker, record: rec, layer: layer });
           count++;
 
-          // For GPX-Auto layers, fetch and draw the route immediately
+          // For GPX-Auto layers, parse the cell for multiple segments and render each.
+          // e.g. "day1.gpx #e05252 | day2.gpx #3daa5c" renders two coloured polylines.
           if (hasAutoGpx && gf) {
-            return fetchAndRenderGPX(gf, gc, layer.id);
+            var segs = parseGpxSegments(gf, gc);
+            return Promise.all(segs.map(function(seg) {
+              return fetchAndRenderGPX(seg.file, seg.color, layer.id);
+            }));
           }
         }));
       })(record, lat, lng, photoFilename, gpxFilename, gpxColor,
@@ -831,6 +839,40 @@ function getDriveImageUrl(fileId) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// GPX SEGMENT PARSER
+// Converts a cell value into an array of {file, color} objects.
+//
+// Supported cell formats (all backward-compatible):
+//   Single file:            "route.gpx"
+//   Single file + color:    "route.gpx #e05252"
+//   Multi-segment:          "day1.gpx #e05252 | day2.gpx #3daa5c | day3.gpx"
+//
+// Each pipe-separated token is "filename [optional-color]".
+// If no color is given for a segment, defaultColor is used.
+// ═══════════════════════════════════════════════════════════
+
+function parseGpxSegments(cellValue, defaultColor) {
+  if (!cellValue) return [];
+  defaultColor = defaultColor || '#e8a020';
+
+  // Split on pipe character, trim whitespace from each token
+  return cellValue.split('|').map(function(token) {
+    token = token.trim();
+    if (!token) return null;
+
+    // Check for a hex color at the END of the token (after the filename)
+    var colorMatch = token.match(/(#[0-9a-fA-F]{6})\s*$/);
+    var color      = colorMatch ? colorMatch[1] : defaultColor;
+
+    // Remove the color from the token to get the bare filename
+    var file = token.replace(/(#[0-9a-fA-F]{6})\s*$/, '').trim();
+    if (!file) return null;
+
+    return { file: file, color: color };
+  }).filter(Boolean); // drop any null entries
+}
+
+// ═══════════════════════════════════════════════════════════
 // GPX FETCH AND RENDER
 // Fetches a .gpx file from the GitHub Pages /routes/ folder
 // and draws it as a coloured polyline on the map.
@@ -868,26 +910,49 @@ async function fetchAndRenderGPX(gpxFilename, color, layerId) {
   } catch(e) { console.error('fetchAndRenderGPX error:', e); }
 }
 
-// Renders a GPX route in response to a marker click (Bike Rides layer).
-// Clears any previously click-rendered route first.
-async function renderClickGPX(gpxFilename, color) {
-  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
-  try {
-    var filename = gpxFilename.split('/').pop();
-    if (!filename) return;
-    var url  = 'https://jumpin721-ux.github.io/routes/' + encodeURIComponent(filename);
-    var resp = await fetch(url);
-    if (!resp.ok) return;
-    var pts  = parseGPX(await resp.text());
-    if (!pts.length) return;
-    clickPolyline = new google.maps.Polyline({
-      path: pts, strokeColor: color || '#e8a020',
-      strokeWeight: 4, strokeOpacity: 0.85, map: map
-    });
-    // Show the Clear Route button while a click-GPX route is active
+// Renders GPX route(s) in response to a marker click (Bike Rides / Bucket List layers).
+// Supports multi-segment format: "day1.gpx #e05252 | day2.gpx #3daa5c"
+// Clears any previously click-rendered routes first.
+// clickPolyline is now an array to hold multiple segment polylines.
+async function renderClickGPX(gpxCellValue, defaultColor) {
+  // Clear any existing click polylines
+  if (clickPolyline) {
+    if (Array.isArray(clickPolyline)) {
+      clickPolyline.forEach(function(p) { p.setMap(null); });
+    } else {
+      clickPolyline.setMap(null);
+    }
+    clickPolyline = null;
+  }
+
+  var segs = parseGpxSegments(gpxCellValue, defaultColor || '#e8a020');
+  if (!segs.length) return;
+
+  var polylines = [];
+  await Promise.all(segs.map(async function(seg) {
+    try {
+      var filename = seg.file.split('/').pop();
+      if (!filename) return;
+      var url  = 'https://jumpin721-ux.github.io/routes/' + encodeURIComponent(filename);
+      var resp = await fetch(url);
+      if (!resp.ok) { console.error('renderClickGPX fetch error:', resp.status, filename); return; }
+      var pts  = parseGPX(await resp.text());
+      if (!pts.length) return;
+      var poly = new google.maps.Polyline({
+        path: pts, strokeColor: seg.color,
+        strokeWeight: 4, strokeOpacity: 0.85, map: map
+      });
+      polylines.push(poly);
+    } catch(e) { console.error('renderClickGPX error:', e); }
+  }));
+
+  clickPolyline = polylines; // store as array
+
+  // Show the Clear Route button while click-GPX routes are active
+  if (polylines.length) {
     var btn = document.getElementById('clear-route-btn');
     if (btn) btn.style.display = 'block';
-  } catch(e) { console.error('renderClickGPX error:', e); }
+  }
 }
 
 // Parse a GPX XML string and return an array of {lat, lng} objects.
@@ -911,10 +976,18 @@ function parseGPX(text) {
     .filter(function(p) { return !isNaN(p.lat) && !isNaN(p.lng); });
 }
 
-// Remove the click-rendered GPX polyline (Bike Rides marker click).
+// Remove click-rendered GPX polylines (Bike Rides / Bucket List marker click).
+// clickPolyline may now be an array (multi-segment routes).
 // Hides the Clear Route button only if no file GPX is also active.
 function clearClickGPX() {
-  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
+  if (clickPolyline) {
+    if (Array.isArray(clickPolyline)) {
+      clickPolyline.forEach(function(p) { p.setMap(null); });
+    } else {
+      clickPolyline.setMap(null);
+    }
+    clickPolyline = null;
+  }
   if (!fileGPXLine) {
     var btn = document.getElementById('clear-route-btn');
     if (btn) btn.style.display = 'none';
@@ -1239,8 +1312,15 @@ function loadGPXFile(e) {
 // Clear ALL active routes — both click-GPX (Bike Rides) and file-uploaded GPX.
 // Called by the Clear Route button and when a new file is loaded.
 function clearAllRoutes() {
-  // Clear click-GPX (Bike Rides marker click)
-  if (clickPolyline) { clickPolyline.setMap(null); clickPolyline = null; }
+  // Clear click-GPX (Bike Rides / Bucket List marker click) — may be array of segments
+  if (clickPolyline) {
+    if (Array.isArray(clickPolyline)) {
+      clickPolyline.forEach(function(p) { p.setMap(null); });
+    } else {
+      clickPolyline.setMap(null);
+    }
+    clickPolyline = null;
+  }
   // Clear file-uploaded GPX
   if (fileGPXLine)   { fileGPXLine.setMap(null);   fileGPXLine   = null; }
   // Hide the Clear Route button
