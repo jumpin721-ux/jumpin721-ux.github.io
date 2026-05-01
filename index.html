@@ -855,17 +855,29 @@ function parseGpxSegments(cellValue, defaultColor) {
   if (!cellValue) return [];
   defaultColor = defaultColor || '#e8a020';
 
-  // Split on pipe character, trim whitespace from each token
-  return cellValue.split('|').map(function(token) {
+  // Split on newline (\n or \r\n) or pipe — whichever is present.
+  // Google Sheets may return multi-line cell content with \n or \r\n.
+  // Format per segment: "filename.gpx #rrggbb [optional label]"
+  // e.g. "MTR_2022_Day0.gpx #2e6fbf Dk Blue"
+  // The optional label after the hex color is ignored.
+  // Debug: log the raw cell value so we can see what delimiter Google Sheets uses
+  console.log('GPX cell raw:', JSON.stringify(cellValue));
+  var delimiter = (cellValue.indexOf('|') !== -1) ? '|' : /\r?\n/;
+  return cellValue.split(delimiter).map(function(token) {
     token = token.trim();
     if (!token) return null;
 
-    // Check for a hex color at the END of the token (after the filename)
-    var colorMatch = token.match(/(#[0-9a-fA-F]{6})\s*$/);
-    var color      = colorMatch ? colorMatch[1] : defaultColor;
+    // Extract the first hex color found anywhere in the token
+    var colorMatch = token.match(/#[0-9a-fA-F]{6}/);
+    var color      = colorMatch ? colorMatch[0] : defaultColor;
 
-    // Remove the color from the token to get the bare filename
-    var file = token.replace(/(#[0-9a-fA-F]{6})\s*$/, '').trim();
+    // The filename is everything before the hex color (or the whole token if no color)
+    var file = colorMatch
+      ? token.substring(0, token.indexOf(colorMatch[0])).trim()
+      : token.trim();
+
+    // Strip any trailing label text after the hex color (e.g. "Dk Blue", "Red")
+    // by only keeping the .gpx filename portion
     if (!file) return null;
 
     return { file: file, color: color };
