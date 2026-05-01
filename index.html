@@ -860,9 +860,9 @@ function parseGpxSegments(cellValue, defaultColor) {
   // Format per segment: "filename.gpx #rrggbb [optional label]"
   // e.g. "MTR_2022_Day0.gpx #2e6fbf Dk Blue"
   // The optional label after the hex color is ignored.
-  // Debug: log the raw cell value so we can see what delimiter Google Sheets uses
-  console.log('GPX cell raw:', JSON.stringify(cellValue));
-  var delimiter = (cellValue.indexOf('|') !== -1) ? '|' : /\r?\n/;
+  // Google Sheets returns multi-line cell values with plain \n — split on that.
+  // Also support pipe | as an alternative delimiter.
+  var delimiter = (cellValue.indexOf('|') !== -1) ? '|' : '\n';
   return cellValue.split(delimiter).map(function(token) {
     token = token.trim();
     if (!token) return null;
