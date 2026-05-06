@@ -1210,9 +1210,11 @@ function makeAdvancedMarker(position, layer, iconOverride) {
 function makeMarker(place, layer, lat, lng) {
   var m = makeAdvancedMarker({ lat: lat, lng: lng }, layer, null);
   m.map = enabled[layer.id] ? map : null;
-  m.addListener('mouseover', function(e) { showTooltip(place, layer, e, 'places'); });
-  m.addListener('mouseout',  scheduleHide);
-  m.addListener('click',     function() { showPopup(place, layer, 'places', lat, lng, null, m); });
+  // AdvancedMarkerElement uses DOM events on its content element for hover,
+  // and google.maps.event for click
+  m.content.addEventListener('mouseenter', function(e) { showTooltip(place, layer, e, 'places'); });
+  m.content.addEventListener('mouseleave', scheduleHide);
+  m.addListener('click', function() { showPopup(place, layer, 'places', lat, lng, null, m); });
   return m;
 }
 
@@ -1223,8 +1225,9 @@ function makeSheetMarker(record, layer, lat, lng, photoId, hasClickGpx, gpxColor
   var iconOverride = (record['icon'] || '').trim() || null;
   var m = makeAdvancedMarker({ lat: lat, lng: lng }, layer, iconOverride);
   m.map = enabled[layer.id] ? map : null;
-  m.addListener('mouseover', function(e) { showTooltip(record, layer, e, 'sheet'); });
-  m.addListener('mouseout',  scheduleHide);
+  // AdvancedMarkerElement uses DOM events on its content element for hover
+  m.content.addEventListener('mouseenter', function(e) { showTooltip(record, layer, e, 'sheet'); });
+  m.content.addEventListener('mouseleave', scheduleHide);
   m.addListener('click', function() {
     showPopup(record, layer, 'sheet', lat, lng, photoId, m);
     // For click-GPX layers (Bike Rides / Bucket List), draw route when pin is clicked
@@ -1272,8 +1275,9 @@ function showTooltip(data, layer, event, dtype) {
   // Position the tooltip near the cursor
   clearTimeout(_hideTimer);
   var wrap = document.getElementById('map-wrap'), rect = wrap.getBoundingClientRect();
-  var x = (event.domEvent && event.domEvent.clientX || 0) - rect.left;
-  var y = (event.domEvent && event.domEvent.clientY || 0) - rect.top;
+  // AdvancedMarkerElement fires plain DOM MouseEvents; legacy Marker wrapped in domEvent
+  var x = (event.clientX || (event.domEvent && event.domEvent.clientX) || 0) - rect.left;
+  var y = (event.clientY || (event.domEvent && event.domEvent.clientY) || 0) - rect.top;
   tt.style.left = (x + 8) + 'px'; tt.style.top = (y - 4) + 'px'; tt.style.display = 'block';
 }
 
