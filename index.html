@@ -226,6 +226,7 @@ let routeCache = {};      // filename → Drive file ID  (for GPX files on Drive
 let autoPolylines = {};   // layerId → [google.maps.Polyline] for GPX-Auto routes
 let clickPolyline  = null; // Single polyline shown when user clicks a Bike Rides marker
 let fileGPXLine    = null; // Polyline loaded from a user-uploaded GPX file — persists until Route Planner reopens
+let mileMarkers    = [];   // AdvancedMarkerElements placed every 10 miles on a user-loaded GPX
 let infoWindow     = null; // Google Maps InfoWindow — the anchored popup with pointer tail
 var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
 
@@ -240,7 +241,7 @@ var _hideTimer = null;    // setTimeout handle used to delay tooltip hide
   // 'libraries=routes' loads the modern Routes library (needed by DirectionsService)
   // 'callback=initMap' tells Google Maps to call our initMap() when ready
   // 'loading=async' prevents the script from blocking page render
-  s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&libraries=routes&callback=initMap&loading=async';
+  s.src = 'https://maps.googleapis.com/maps/api/js?key='+apiKey+'&libraries=routes,marker&callback=initMap&loading=async';
   s.async = true;
   s.onerror = function(){ console.error('Failed to load Google Maps API.'); };
   document.head.appendChild(s);
@@ -264,6 +265,10 @@ window.initMap = async function() {
     center:   saved.center,
     zoom:     saved.zoom,
     mapTypeId: 'roadmap',
+    // Map ID is required for Advanced Markers.
+    // Create one in Google Cloud Console → Google Maps Platform → Map management,
+    // then replace 'DEMO_MAP_ID' below with your actual Map ID.
+    mapId: 'DEMO_MAP_ID',
     // Hide controls we don't need
     streetViewControl:  false,
     fullscreenControl:  false,
@@ -348,6 +353,7 @@ async function loadLayerConfig() {
     var groupName = (row[COL.GROUP]    || '').trim().replace(/^-$/, '');
     var apiType   = (row[COL.API_TYPE] || '').trim();
     var colorRaw  = (row[COL.COLOR]    || '').trim();
+    var iconRaw   = (row[COL.ICON]     || '').trim();  // keyword or emoji for this layer
     var sheetId   = (row[COL.SHEET_ID] || '').trim();
     var tabName   = (row[COL.TAB]      || '').trim().replace(/^-$/, '');
     var color     = parseColor(colorRaw);
@@ -365,7 +371,7 @@ async function loadLayerConfig() {
 
     } else if (layerType === 'Places API') {
       // Places API layers search Google Places by type (e.g. 'campground', 'restaurant')
-      var layer = { id: slugify(layerName), type: 'places', label: layerName, color: color, searchType: apiType, hover: hover, click: click };
+      var layer = { id: slugify(layerName), type: 'places', label: layerName, color: color, icon: iconRaw, searchType: apiType, hover: hover, click: click };
       if (groupName && currentGroup && currentGroup.label === groupName) currentGroup.children.push(layer);
       else LAYERS.push(layer);
 
@@ -374,7 +380,7 @@ async function loadLayerConfig() {
       // In public mode (default), these are skipped entirely so visitors
       // only see the Places API layers. Pass ?private=true to enable them.
       if (!IS_PRIVATE) continue;
-      var slayer = { id: slugify(layerName), type: 'sheet', label: layerName, color: color, sheetId: sheetId, tabName: tabName, hover: hover, click: click };
+      var slayer = { id: slugify(layerName), type: 'sheet', label: layerName, color: color, icon: iconRaw, sheetId: sheetId, tabName: tabName, hover: hover, click: click };
       if (groupName && currentGroup && currentGroup.label === groupName) currentGroup.children.push(slayer);
       else LAYERS.push(slayer);
     }
@@ -536,7 +542,16 @@ function addGpxLayerRow() {
 
 // Show or hide all markers for a given layer
 function toggleLayer(id, on)  { enabled[id] = on; setVisible(id, on); }
-function setVisible(id, on)   { (markers[id] || []).forEach(function(m) { m.marker.setVisible(on); }); }
+function setVisible(id, on) {
+  (markers[id] || []).forEach(function(m) {
+    // AdvancedMarkerElement uses .map property; legacy Marker uses .setMap()
+    if (m.marker.setMap) {
+      m.marker.setMap(on ? map : null);
+    } else {
+      m.marker.map = on ? map : null;
+    }
+  });
+}
 
 // Toggle all layers on or off at once (the "All Off / All On" button)
 function toggleAll() {
@@ -1026,14 +1041,173 @@ function resolveField(fieldSpec, record) {
 // MARKERS
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// MILE MARKERS
+// After a user loads a GPX file, calcMileMarkers() walks the
+// track points, accumulates distance using the Haversine formula,
+// and places a small numbered circle every MILE_INTERVAL miles.
+// ═══════════════════════════════════════════════════════════
+
+var MILE_INTERVAL = 10; // miles between markers
+
+// Haversine distance between two {lat,lng} points in miles
+function haversine(a, b) {
+  var R    = 3958.8; // Earth radius in miles
+  var dLat = (b.lat - a.lat) * Math.PI / 180;
+  var dLng = (b.lng - a.lng) * Math.PI / 180;
+  var sinLat = Math.sin(dLat / 2);
+  var sinLng = Math.sin(dLng / 2);
+  var x = sinLat * sinLat +
+          Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+// Place numbered circle markers every MILE_INTERVAL miles along a track
+function addMileMarkers(pts) {
+  clearMileMarkers(); // remove any previous set
+  if (!pts || pts.length < 2) return;
+
+  var cumulative = 0;        // total miles so far
+  var nextMile   = MILE_INTERVAL; // mileage of next marker to place
+
+  for (var i = 1; i < pts.length; i++) {
+    cumulative += haversine(pts[i-1], pts[i]);
+
+    // Place a marker when we cross the next interval threshold
+    while (cumulative >= nextMile) {
+      // Interpolate the exact position on the segment at nextMile
+      var seg      = haversine(pts[i-1], pts[i]);
+      var fraction = seg > 0 ? (nextMile - (cumulative - seg)) / seg : 0;
+      var markerLat = pts[i-1].lat + fraction * (pts[i].lat - pts[i-1].lat);
+      var markerLng = pts[i-1].lng + fraction * (pts[i].lng - pts[i-1].lng);
+
+      // Build the marker element — small white circle with mile number
+      var el = document.createElement('div');
+      el.style.cssText = [
+        'background: white',
+        'border: 2px solid #e8a020',
+        'border-radius: 50%',
+        'width: 24px',
+        'height: 24px',
+        'display: flex',
+        'align-items: center',
+        'justify-content: center',
+        'font-size: 9px',
+        'font-weight: 700',
+        'font-family: Barlow Condensed, sans-serif',
+        'color: #333',
+        'box-shadow: 0 1px 4px rgba(0,0,0,0.3)',
+        'pointer-events: none'  // don't intercept map clicks
+      ].join(';');
+      el.textContent = nextMile;
+
+      var am = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: markerLat, lng: markerLng },
+        map:      map,
+        content:  el,
+        title:    nextMile + ' miles'
+      });
+      mileMarkers.push(am);
+      nextMile += MILE_INTERVAL;
+    }
+  }
+}
+
+// Remove all mile markers from the map
+function clearMileMarkers() {
+  mileMarkers.forEach(function(m) { m.map = null; });
+  mileMarkers = [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// ICON RESOLUTION
+// Maps keyword strings (from the ICON column in the config sheet)
+// to emoji characters. Falls back to treating the value as a
+// literal emoji if the keyword isn't in the table.
+// ═══════════════════════════════════════════════════════════
+
+function resolveIcon(keyword) {
+  if (!keyword) return '📍';
+  var lookup = {
+    // Places layers — keyword names you put in the config sheet
+    'hotel':         '🏨',
+    'church':        '⛪',
+    'tent':          '⛺',
+    'campground':    '⛺',
+    'knife/fork':    '🍽',
+    'restaurant':    '🍽',
+    'shopping cart': '🛒',
+    'grocery':       '🛒',
+    'building':      '🏪',
+    'convenience':   '🏪',
+    'wrench':        '🔧',
+    'bike shop':     '🔧',
+    'red cross':     '🏥',
+    'medical':       '🏥',
+    'house':         '🏠',
+    // Bucket List / Sheet layers
+    'bike':          '🚴',
+    'hike':          '🥾',
+    'hiking':        '🥾',
+    'attraction':    '🎡',
+    'park':          '🌲',
+    'waterfall':     '💧',
+    'checkmark':     '✅',
+    'check':         '✅',
+    'circle':        '⭐',
+    'star':          '⭐',
+    'camera':        '📷',
+    'food':          '🍽',
+    'museum':        '🏛',
+    'beach':         '🏖',
+    'mountain':      '⛰',
+    'cave':          '🪨',
+    'distillery':    '🥃',
+    'brewery':       '🍺',
+  };
+  var key = keyword.toLowerCase().trim();
+  return lookup[key] || keyword; // fall back to literal value (allows direct emoji entry)
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADVANCED MARKER CREATION
+// Creates a google.maps.marker.AdvancedMarkerElement with a
+// styled HTML element as the pin content.
+// The pin is a small circle in the layer color with an emoji icon.
+// iconOverride allows per-item icons (Bucket List rows with Icon column).
+// ═══════════════════════════════════════════════════════════
+
+function makeAdvancedMarker(position, layer, iconOverride) {
+  var emoji = resolveIcon(iconOverride || layer.icon || '');
+
+  // Build the pin HTML — coloured circle with emoji centred inside
+  var pin = document.createElement('div');
+  pin.style.cssText = [
+    'background:' + layer.color,
+    'border: 2px solid rgba(255,255,255,0.8)',
+    'border-radius: 50%',
+    'width: 30px',
+    'height: 30px',
+    'display: flex',
+    'align-items: center',
+    'justify-content: center',
+    'font-size: 15px',
+    'box-shadow: 0 2px 6px rgba(0,0,0,0.35)',
+    'cursor: pointer'
+  ].join(';');
+  pin.textContent = emoji;
+
+  return new google.maps.marker.AdvancedMarkerElement({
+    position: position,
+    content:  pin,
+    title:    ''
+  });
+}
+
 // Create a coloured circle marker for a Places API result
 function makeMarker(place, layer, lat, lng) {
-  var m = new google.maps.Marker({
-    position: { lat: lat, lng: lng },
-    map:      enabled[layer.id] ? map : null,
-    title:    '',
-    icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: layer.color, fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1.5, scale: 8 }
-  });
+  var m = makeAdvancedMarker({ lat: lat, lng: lng }, layer, null);
+  m.map = enabled[layer.id] ? map : null;
   m.addListener('mouseover', function(e) { showTooltip(place, layer, e, 'places'); });
   m.addListener('mouseout',  scheduleHide);
   m.addListener('click',     function() { showPopup(place, layer, 'places', lat, lng, null, m); });
@@ -1043,17 +1217,15 @@ function makeMarker(place, layer, lat, lng) {
 // Create a coloured circle marker for a Google Sheet row.
 // hasClickGpx and gpxColor are used to render a route on click.
 function makeSheetMarker(record, layer, lat, lng, photoId, hasClickGpx, gpxColor) {
-  var m = new google.maps.Marker({
-    position: { lat: lat, lng: lng },
-    map:      enabled[layer.id] ? map : null,
-    title:    '',
-    icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: layer.color, fillOpacity: 0.9, strokeColor: '#ffffff', strokeWeight: 1.5, scale: 8 }
-  });
+  // Per-item icon from the sheet's 'icon' column overrides the layer default
+  var iconOverride = (record['icon'] || '').trim() || null;
+  var m = makeAdvancedMarker({ lat: lat, lng: lng }, layer, iconOverride);
+  m.map = enabled[layer.id] ? map : null;
   m.addListener('mouseover', function(e) { showTooltip(record, layer, e, 'sheet'); });
   m.addListener('mouseout',  scheduleHide);
   m.addListener('click', function() {
     showPopup(record, layer, 'sheet', lat, lng, photoId, m);
-    // For click-GPX layers (Bike Rides), draw the route when the pin is clicked
+    // For click-GPX layers (Bike Rides / Bucket List), draw route when pin is clicked
     if (hasClickGpx && record._gpxFile) {
       renderClickGPX(record._gpxFile, record._gpxColor);
     }
@@ -1306,6 +1478,10 @@ function loadGPXFile(e) {
     var b = new google.maps.LatLngBounds();
     pts.forEach(function(p) { b.extend(p); });
     map.fitBounds(b);
+
+    // Place mile markers every 10 miles along the route
+    addMileMarkers(pts);
+
     setStatus('GPX loaded: ' + pts.length + ' points from "' + file.name + '"');
 
     // Show the Clear Route button now that a route is active
@@ -1335,7 +1511,8 @@ function clearAllRoutes() {
   }
   // Clear file-uploaded GPX
   if (fileGPXLine)   { fileGPXLine.setMap(null);   fileGPXLine   = null; }
-  // Hide the Clear Route button
+  // Clear mile markers and hide the Clear Route button
+  clearMileMarkers();
   document.getElementById('clear-route-btn').style.display = 'none';
   // Reset GPX row label
   var lbl = document.getElementById('gpx-layer-cnt');
