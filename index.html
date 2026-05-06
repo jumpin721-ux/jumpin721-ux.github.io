@@ -57,7 +57,7 @@
     .layer-row.ungrouped { padding-left: 12px; }
     .layer-row:hover { background: #f5f5f5; }
     .layer-cb { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; accent-color: #e8a020; }
-    .layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1.5px solid rgba(0,0,0,0.1); }
+    .layer-icon { width: 18px; text-align: center; font-size: 14px; flex-shrink: 0; }
     .layer-lbl { font-size: 13px; color: #333; flex: 1; }
     .layer-cnt { font-size: 10px; color: #aaa; min-width: 20px; text-align: right; }
 
@@ -512,11 +512,12 @@ function makeLayerRow(layer, isChild) {
     }
   });
 
-  var dot = document.createElement('div'); dot.className = 'layer-dot'; dot.style.background = layer.color;
-  var lbl = document.createElement('span'); lbl.className = 'layer-lbl'; lbl.textContent = layer.label;
-  var cnt = document.createElement('span'); cnt.className = 'layer-cnt'; cnt.id = 'cnt-' + layer.id;
+  // Show emoji icon in panel instead of colored dot — matches the map marker appearance
+  var iconEl = document.createElement('span'); iconEl.className = 'layer-icon'; iconEl.textContent = resolveIcon(layer.icon || '');
+  var lbl    = document.createElement('span'); lbl.className = 'layer-lbl'; lbl.textContent = layer.label;
+  var cnt    = document.createElement('span'); cnt.className = 'layer-cnt'; cnt.id = 'cnt-' + layer.id;
 
-  row.appendChild(cb); row.appendChild(dot); row.appendChild(lbl); row.appendChild(cnt);
+  row.appendChild(cb); row.appendChild(iconEl); row.appendChild(lbl); row.appendChild(cnt);
   return row;
 }
 
@@ -1087,17 +1088,17 @@ function addMileMarkers(pts) {
         'background: white',
         'border: 2px solid #e8a020',
         'border-radius: 50%',
-        'width: 24px',
-        'height: 24px',
+        'width: 34px',
+        'height: 34px',
         'display: flex',
         'align-items: center',
         'justify-content: center',
-        'font-size: 9px',
+        'font-size: 12px',
         'font-weight: 700',
         'font-family: Barlow Condensed, sans-serif',
         'color: #333',
-        'box-shadow: 0 1px 4px rgba(0,0,0,0.3)',
-        'pointer-events: none'  // don't intercept map clicks
+        'box-shadow: 0 2px 5px rgba(0,0,0,0.3)',
+        'pointer-events: none'
       ].join(';');
       el.textContent = nextMile;
 
@@ -1149,6 +1150,7 @@ function resolveIcon(keyword) {
     'bike':          '🚴',
     'hike':          '🥾',
     'hiking':        '🥾',
+    'hiker':         '🥾',
     'attraction':    '🎡',
     'park':          '🌲',
     'waterfall':     '💧',
@@ -1183,16 +1185,16 @@ function makeAdvancedMarker(position, layer, iconOverride) {
   // Build the pin HTML — coloured circle with emoji centred inside
   var pin = document.createElement('div');
   pin.style.cssText = [
-    'background:' + layer.color,
-    'border: 2px solid rgba(255,255,255,0.8)',
+    'background: white',
+    'border: 1.5px solid rgba(0,0,0,0.15)',
     'border-radius: 50%',
-    'width: 30px',
-    'height: 30px',
+    'width: 32px',
+    'height: 32px',
     'display: flex',
     'align-items: center',
     'justify-content: center',
-    'font-size: 15px',
-    'box-shadow: 0 2px 6px rgba(0,0,0,0.35)',
+    'font-size: 17px',
+    'box-shadow: 0 2px 6px rgba(0,0,0,0.3)',
     'cursor: pointer'
   ].join(';');
   pin.textContent = emoji;
